@@ -370,98 +370,243 @@ function ServiceModePicker({
   onSelect: (m: ServiceMode) => void;
   onOps: () => void;
 }) {
+  const [activeTab, setActiveTab] = useState<"all" | "customer" | "team">("all");
+
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "var(--chapa-950)",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "2rem",
-      }}
-    >
-      <div style={{ textAlign: "center", marginBottom: "3rem", color: "#fff" }}>
-        <Logo />
-        <p style={{ color: "#cdb899", marginTop: "1rem", fontSize: "14px" }}>
-          Selecione o modo de atendimento para continuar
-        </p>
-      </div>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-          gap: "1.25rem",
-          maxWidth: "700px",
-          width: "100%",
-        }}
-      >
-        {(Object.entries(MODE_CONFIG) as [ServiceMode, (typeof MODE_CONFIG)["customer"]][]).map(
-          ([mode, cfg]) => (
+    <div className="service-picker-wrapper">
+      {/* Background Atmosphere Glows */}
+      <div className="service-picker-glow glow-top" />
+      <div className="service-picker-glow glow-bottom" />
+
+      <div className="service-picker-container">
+        {/* Brand Header */}
+        <header className="service-picker-header">
+          <div className="service-picker-logo-box">
+            <img
+              src="/meu-chapa-logo.jpg"
+              alt="Meu Chapa Burger - Est. 2023 - Quality Guaranteed"
+              className="service-picker-logo-img"
+            />
+          </div>
+
+          <div className="service-picker-badges">
+            <span className="gold-pill">
+              <Sparkles size={13} /> Tradição na Brasa
+            </span>
+            <span className="gold-pill">
+              <Flame size={13} /> Sabor Artesanal
+            </span>
+            <span className="gold-pill">★ Est. 2023 • Quality Guaranteed</span>
+          </div>
+
+          <h1 className="service-picker-title">
+            Bem-vindo ao <span>Meu Chapa</span>
+          </h1>
+          <p className="service-picker-subtitle">
+            Selecione o ambiente desejado para uma experiência rápida, prática e intuitiva.
+          </p>
+
+          {/* Quick Environment Filter Tabs */}
+          <div className="service-picker-tabs">
             <button
-              key={mode}
-              onClick={() => onSelect(mode)}
-              style={{
-                padding: "2rem 1.5rem",
-                border: `2px solid ${cfg.border}`,
-                borderRadius: "1rem",
-                background: cfg.bg,
-                cursor: "pointer",
-                textAlign: "center",
-                transition: "transform .18s, box-shadow .18s",
-                boxShadow: "0 4px 16px rgba(0,0,0,.14)",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: ".75rem",
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.transform = "translateY(-6px)";
-                (e.currentTarget as HTMLElement).style.boxShadow =
-                  "0 12px 32px rgba(0,0,0,.22)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLElement).style.transform = "";
-                (e.currentTarget as HTMLElement).style.boxShadow =
-                  "0 4px 16px rgba(0,0,0,.14)";
-              }}
+              type="button"
+              className={`picker-tab ${activeTab === "all" ? "active" : ""}`}
+              onClick={() => setActiveTab("all")}
             >
-              <div
-                style={{
-                  color: cfg.accent,
-                  padding: ".75rem",
-                  background: "white",
-                  borderRadius: "50%",
-                  boxShadow: `0 0 0 4px ${cfg.border}`,
-                }}
-              >
-                {cfg.icon}
-              </div>
-              <strong style={{ fontSize: "1.1rem", color: cfg.accent }}>{cfg.label}</strong>
-              <span style={{ fontSize: "12px", color: "#666" }}>{cfg.desc}</span>
+              <Sparkles size={14} /> Todos os Ambientes
             </button>
-          )
-        )}
+            <button
+              type="button"
+              className={`picker-tab ${activeTab === "customer" ? "active" : ""}`}
+              onClick={() => setActiveTab("customer")}
+            >
+              <QrCode size={14} /> Espaço do Cliente
+            </button>
+            <button
+              type="button"
+              className={`picker-tab ${activeTab === "team" ? "active" : ""}`}
+              onClick={() => setActiveTab("team")}
+            >
+              <ChefHat size={14} /> Central da Equipe
+            </button>
+          </div>
+        </header>
+
+        {/* Environments Grid */}
+        <div className={`service-environments-grid ${activeTab !== "all" ? "single-focus" : ""}`}>
+          {/* ══════════════════════════════════════════
+              AMBIENTE DO CLIENTE (Autoatendimento & Cardápio)
+             ══════════════════════════════════════════ */}
+          {(activeTab === "all" || activeTab === "customer") && (
+            <section className="environment-card customer-portal">
+              <div className="card-top-tag">
+                <span className="tag-badge customer">
+                  <QrCode size={13} /> Espaço do Cliente
+                </span>
+                <span className="tag-status">Autoatendimento • QR Code</span>
+              </div>
+
+              <div className="customer-portal-body">
+                <div className="portal-icon-wrapper">
+                  <div className="portal-icon-inner customer-glow">
+                    <QrCode size={36} />
+                  </div>
+                </div>
+
+                <div className="portal-info">
+                  <h2>Cardápio Digital & Pedidos</h2>
+                  <p>
+                    Faça seu pedido diretamente pelo celular via QR Code da mesa ou explore nossos burgers artesanais, porções crocantes e bebidas geladas.
+                  </p>
+                </div>
+
+                {/* Highlights */}
+                <div className="customer-perks">
+                  <div className="perk-item">
+                    <Flame size={16} className="perk-icon" />
+                    <div>
+                      <strong>Burgers Feitos na Chapa</strong>
+                      <span>Blend especial moído fresco e grelhado no ponto</span>
+                    </div>
+                  </div>
+                  <div className="perk-item">
+                    <Clock3 size={16} className="perk-icon" />
+                    <div>
+                      <strong>Sem Filas nem Espera</strong>
+                      <span>Seu pedido vai direto para a chapa da cozinha</span>
+                    </div>
+                  </div>
+                  <div className="perk-item">
+                    <ReceiptText size={16} className="perk-icon" />
+                    <div>
+                      <strong>Acompanhamento em Tempo Real</strong>
+                      <span>Notificações claras: Recebido, Na Chapa e Pronto</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Button */}
+                <button
+                  type="button"
+                  className="portal-primary-btn"
+                  onClick={() => onSelect("customer")}
+                >
+                  <span>Acessar Cardápio & Fazer Pedido</span>
+                  <ArrowRight size={18} />
+                </button>
+              </div>
+            </section>
+          )}
+
+          {/* ══════════════════════════════════════════
+              AMBIENTE DA EQUIPE (Salão, Balcão e Cozinha)
+             ══════════════════════════════════════════ */}
+          {(activeTab === "all" || activeTab === "team") && (
+            <section className="environment-card team-portal">
+              <div className="card-top-tag">
+                <span className="tag-badge team">
+                  <ChefHat size={13} /> Central da Equipe
+                </span>
+                <span className="tag-status">Operação & Atendimento</span>
+              </div>
+
+              <div className="team-portal-body">
+                <div className="team-portal-head">
+                  <h2>Acesso Operacional</h2>
+                  <p>
+                    Ferramentas práticas e intuitivas para o time Meu Chapa agilizar o salão, balcão e produção.
+                  </p>
+                </div>
+
+                {/* Team Options */}
+                <div className="team-options-list">
+                  {/* Option 1: Waiter */}
+                  <div
+                    className="team-option-card"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => onSelect("waiter")}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") onSelect("waiter");
+                    }}
+                  >
+                    <div className="option-icon waiter-bg">
+                      <Users size={22} />
+                    </div>
+                    <div className="option-content">
+                      <div className="option-title-row">
+                        <strong>Modo Garçom</strong>
+                        <span className="option-pill">Mesas</span>
+                      </div>
+                      <p>Lançamento ágil de pedidos por mesa, comanda e clientes no salão.</p>
+                    </div>
+                    <ChevronRight size={18} className="option-arrow" />
+                  </div>
+
+                  {/* Option 2: Counter */}
+                  <div
+                    className="team-option-card"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => onSelect("counter")}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") onSelect("counter");
+                    }}
+                  >
+                    <div className="option-icon counter-bg">
+                      <MonitorSmartphone size={22} />
+                    </div>
+                    <div className="option-content">
+                      <div className="option-title-row">
+                        <strong>Modo Balcão</strong>
+                        <span className="option-pill">PDV Rápido</span>
+                      </div>
+                      <p>Atendimento presencial de balcão, pedidos para viagem e caixa.</p>
+                    </div>
+                    <ChevronRight size={18} className="option-arrow" />
+                  </div>
+
+                  {/* Option 3: Kitchen & Management */}
+                  <div
+                    className="team-option-card ops-card"
+                    role="button"
+                    tabIndex={0}
+                    onClick={onOps}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") onOps();
+                    }}
+                  >
+                    <div className="option-icon ops-bg">
+                      <Flame size={22} />
+                    </div>
+                    <div className="option-content">
+                      <div className="option-title-row">
+                        <strong>Cozinha & Gestão (KDS)</strong>
+                        <span className="option-pill ops-pill">
+                          <LockKeyhole size={11} /> Painel Geral
+                        </span>
+                      </div>
+                      <p>Controle de pedidos na chapa, financeiro, fechamento de caixa e relatórios.</p>
+                    </div>
+                    <ChevronRight size={18} className="option-arrow" />
+                  </div>
+                </div>
+
+                <div className="team-quick-footer">
+                  <span>🔒 Acesso seguro para colaboradores e gerência Meu Chapa</span>
+                </div>
+              </div>
+            </section>
+          )}
+        </div>
+
+        {/* Footer info */}
+        <footer className="service-picker-footer">
+          <p>
+            © {new Date().getFullYear()} Meu Chapa Burger • Qualidade Garantida desde 2023 • Feito com paixão na chapa
+          </p>
+        </footer>
       </div>
-      <button
-        onClick={onOps}
-        style={{
-          marginTop: "2.5rem",
-          background: "rgba(255,255,255,.08)",
-          border: "1px solid rgba(255,255,255,.15)",
-          color: "#cdb899",
-          borderRadius: ".5rem",
-          padding: ".625rem 1.25rem",
-          fontSize: "12px",
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          gap: ".5rem",
-        }}
-      >
-        <LockKeyhole size={14} /> Área da equipe
-      </button>
     </div>
   );
 }
