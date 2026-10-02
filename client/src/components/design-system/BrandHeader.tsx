@@ -76,7 +76,7 @@ export function BrandHeader({
             }}
           >
             <img
-              src="/meu-chapa-logo.jpg"
+              src="/meu-chapa-logo.png"
               alt="Meu Chapa Burger"
               style={{
                 height: compact ? "36px" : "44px",

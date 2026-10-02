@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { MENU } from "../shared/menu";
+import { MENU, calcTotal } from "../shared/menu";
 import {
   addCashMovement,
   addPayment,
@@ -156,7 +156,8 @@ export const appRouter = router({
           };
         });
 
-        const totalCents = normalizedItems.reduce((sum, item) => sum + item.unitPriceCents * item.quantity, 0);
+        const subtotalCents = normalizedItems.reduce((sum, item) => sum + item.unitPriceCents * item.quantity, 0);
+        const { totalCents } = calcTotal(subtotalCents, input.paymentMethod);
         const order = await createOrder({
           code: makeOrderCode(),
           origin: input.origin,

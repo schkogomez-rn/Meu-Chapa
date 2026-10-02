@@ -151,7 +151,7 @@ export default function StaffLogin() {
         <header className="service-picker-header">
           <div className="service-picker-logo-box" style={{ maxWidth: "250px" }}>
             <img
-              src="/meu-chapa-logo.jpg"
+              src="/meu-chapa-logo.png"
               alt="Meu Chapa Burger"
               className="service-picker-logo-img"
             />

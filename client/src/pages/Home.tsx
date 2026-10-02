@@ -42,7 +42,7 @@ import {
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
 import { Button } from "@/components/ui/button";
-import { MENU_CATEGORIES, type MenuCategory, type MenuItem } from "../../../shared/menu";
+import { MENU_CATEGORIES, ADDONS, calcTotal, ACCEPTED_CARD_BRANDS, type CardBrand, type MenuCategory, type MenuItem } from "../../../shared/menu";
 import { trpc } from "@/lib/trpc";
 import { OperationsPanel } from "@/components/operations/OperationsPanel";
 import { ReceivePaymentModal } from "@/components/financial/ReceivePaymentModal";
@@ -73,6 +73,30 @@ const categoryClass: Record<MenuCategory, string> = {
   "Milk-shakes": "shake",
   Bebidas: "drink",
   Adicionais: "extra",
+};
+
+/** Human-readable short labels used in text-only cards */
+const categoryLabel: Record<MenuCategory, string> = {
+  Combos: "Combo",
+  Hambúrgueres: "Hambúrguer",
+  Baguetes: "Baguete",
+  Tradicionais: "Tradicional",
+  Fritas: "Porção",
+  "Milk-shakes": "Shake",
+  Bebidas: "Bebida",
+  Adicionais: "Adicional",
+};
+
+/** Accent color per category — all within the brand palette */
+const categoryAccent: Record<MenuCategory, string> = {
+  Combos: "#E5B044",
+  Hambúrgueres: "#f07b17",
+  Baguetes: "#c97c35",
+  Tradicionais: "#9a6630",
+  Fritas: "#d4a017",
+  "Milk-shakes": "#5c823b",
+  Bebidas: "#4a7a6d",
+  Adicionais: "#b04040",
 };
 
 type CartLine = MenuItem & { quantity: number; observation: string };
@@ -155,13 +179,13 @@ const PIE_COLORS = [
 // ─── Sub-components ──────────────────────────────────────────────────────────
 function Logo({ compact = false }: { compact?: boolean }) {
   return (
-    <div className={`brand-lockup ${compact ? "compact" : ""}`}>
-      <div className="brand-mark">🍔</div>
-      <div>
-        <strong>MEU CHAPA</strong>
-        <em>Burger</em>
-      </div>
-    </div>
+    <a href="/" className={`brand-lockup ${compact ? "compact" : ""}`} title="Meu Chapa Burger — Início">
+      <img
+        src="/meu-chapa-logo.png"
+        alt="Meu Chapa Burger"
+        className="brand-logo-img"
+      />
+    </a>
   );
 }
 
@@ -175,22 +199,37 @@ function FoodArt({ item, large = false }: { item: MenuItem; large?: boolean }) {
 }
 
 function ProductCard({ item, onAdd }: { item: MenuItem; onAdd: (item: MenuItem) => void }) {
+  const accentColor = categoryAccent[item.category] ?? "var(--brasa)";
   return (
-    <article className="product-card">
-      <FoodArt item={item} />
-      <div className="product-card-body">
-        <div className="eyebrow-row">
-          <span>{item.category}</span>
-          {item.tags?.[0] && <b>{item.tags[0]}</b>}
-        </div>
-        <h3>{item.name}</h3>
-        <p>{item.description}</p>
-        <div className="product-card-footer">
-          <strong>{money(item.priceCents)}</strong>
-          <button className="add-button" onClick={() => onAdd(item)}>
-            <Plus size={16} /> Adicionar
-          </button>
-        </div>
+    <article className="product-card product-card--text" onClick={() => onAdd(item)}>
+      {/* Category stripe + tag */}
+      <div className="pc-top">
+        <span className="pc-category" style={{ color: accentColor }}>
+          {categoryLabel[item.category]}
+        </span>
+        {item.tags?.[0] && (
+          <span className="pc-tag">{item.tags[0]}</span>
+        )}
+      </div>
+
+      {/* Name */}
+      <h3 className="pc-name">{item.name}</h3>
+
+      {/* Divider */}
+      <div className="pc-rule" style={{ background: accentColor }} />
+
+      {/* Description */}
+      <p className="pc-desc">{item.description}</p>
+
+      {/* Footer */}
+      <div className="pc-footer">
+        <strong className="pc-price">{money(item.priceCents)}</strong>
+        <button
+          className="add-button"
+          onClick={(e) => { e.stopPropagation(); onAdd(item); }}
+        >
+          <Plus size={14} /> Adicionar
+        </button>
       </div>
     </article>
   );
@@ -203,11 +242,25 @@ function ProductDialog({
 }: {
   item: MenuItem | null;
   onClose: () => void;
-  onAdd: (item: MenuItem, quantity: number, observation: string) => void;
+  onAdd: (item: MenuItem, quantity: number, observation: string, addons?: MenuItem[]) => void;
 }) {
   const [quantity, setQuantity] = useState(1);
   const [observation, setObservation] = useState("");
+  const [selectedAddons, setSelectedAddons] = useState<MenuItem[]>([]);
+
+  const toggleAddon = (addon: MenuItem) => {
+    setSelectedAddons((prev) =>
+      prev.find((a) => a.id === addon.id)
+        ? prev.filter((a) => a.id !== addon.id)
+        : [...prev, addon]
+    );
+  };
+
   if (!item) return null;
+
+  const isAddonCategory = item.category === "Adicionais";
+  const itemTotal = (item.priceCents + selectedAddons.reduce((s, a) => s + a.priceCents, 0)) * quantity;
+
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
       <div className="modal-card" onMouseDown={(e) => e.stopPropagation()}>
@@ -215,12 +268,17 @@ function ProductDialog({
           <div>
             <span className="eyebrow">personalize sua mordida</span>
             <h2>{item.name}</h2>
+            <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>{item.category}</span>
           </div>
           <button className="icon-button" onClick={onClose}>
             <X size={18} />
           </button>
         </div>
-        <FoodArt item={item} large />
+        {/* Text-only header bar replacing food-art image */}
+        <div className="modal-item-banner" style={{ borderLeftColor: categoryAccent[item.category] ?? "var(--brasa)" }}>
+          <span className="modal-item-price">{money(item.priceCents)}</span>
+          {item.tags?.[0] && <span className="modal-item-tag">{item.tags[0]}</span>}
+        </div>
         <p className="modal-description">{item.description}</p>
         <label className="field-label">
           Quantidade
@@ -234,19 +292,85 @@ function ProductDialog({
             </button>
           </div>
         </label>
+
+        {/* Addon selection — only for non-addon items */}
+        {!isAddonCategory && (
+          <div style={{ margin: "12px 0" }}>
+            <span style={{
+              display: "block",
+              color: "var(--muted)",
+              fontSize: "10px",
+              fontWeight: 800,
+              textTransform: "uppercase",
+              letterSpacing: ".6px",
+              marginBottom: 8,
+            }}>
+              ✨ Adicionais (opcional)
+            </span>
+            <div style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "6px",
+              maxHeight: 160,
+              overflowY: "auto",
+            }}>
+              {ADDONS.map((addon) => {
+                const sel = selectedAddons.find((a) => a.id === addon.id);
+                return (
+                  <button
+                    key={addon.id}
+                    type="button"
+                    onClick={() => toggleAddon(addon)}
+                    style={{
+                      padding: "5px 10px",
+                      borderRadius: 999,
+                      border: sel ? "1.5px solid var(--brasa)" : "1px solid var(--line)",
+                      background: sel ? "var(--chapa-900)" : "#fffaf0",
+                      color: sel ? "var(--cheddar)" : "var(--ink)",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      transition: "all .15s",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {sel ? "✓ " : "+ "}{addon.name} <span style={{ color: sel ? "var(--cheddar)" : "var(--brasa)", fontWeight: 800 }}>+{money(addon.priceCents)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <label className="field-label">
           Observação para a chapa
           <textarea
             value={observation}
             onChange={(e) => setObservation(e.target.value)}
             placeholder="Ex.: sem cebola, molho separado, bem passado..."
-            rows={3}
+            rows={2}
           />
         </label>
+
+        {/* Item total preview */}
+        <div style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          background: "var(--creme)",
+          borderRadius: 8,
+          padding: "8px 14px",
+          marginBottom: 12,
+        }}>
+          <span style={{ fontSize: 12, color: "var(--muted)" }}>Total do item</span>
+          <strong style={{ fontFamily: "Oswald,sans-serif", fontSize: 20, color: "var(--brasa)" }}>{money(itemTotal)}</strong>
+        </div>
+
         <Button
           className="primary-button full"
           onClick={() => {
-            onAdd(item, quantity, observation);
+            onAdd(item, quantity, observation, selectedAddons);
+            setSelectedAddons([]);
             onClose();
           }}
         >
@@ -406,7 +530,7 @@ function ServiceModePicker({
         <header className="service-picker-header">
           <div className="service-picker-logo-box">
             <img
-              src="/meu-chapa-logo.jpg"
+              src="/meu-chapa-logo.png"
               alt="Meu Chapa Burger - Est. 2023 - Quality Guaranteed"
               className="service-picker-logo-img"
             />
@@ -2524,6 +2648,7 @@ export default function Home() {
   const [tableName, setTableName] = useState("Mesa 01");
   const [customerName, setCustomerName] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("Na entrega / fechamento");
+  const [cardBrand, setCardBrand] = useState<CardBrand | "">("");
   const [notes, setNotes] = useState("");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [confirmationCode, setConfirmationCode] = useState<string | null>(null);
@@ -2542,7 +2667,8 @@ export default function Home() {
     [category, menu]
   );
 
-  const addLine = (item: MenuItem, quantity = 1, observation = "") =>
+  const addLine = (item: MenuItem, quantity = 1, observation = "", addons?: MenuItem[]) => {
+    // Add main item
     setCart((lines) => {
       const key = `${item.id}-${observation.trim()}`;
       const ex = lines.find((l) => `${l.id}-${l.observation}` === key);
@@ -2552,6 +2678,21 @@ export default function Home() {
         );
       return [...lines, { ...item, quantity, observation: observation.trim() }];
     });
+    // Add selected addons as separate line items
+    if (addons && addons.length > 0) {
+      addons.forEach((addon) => {
+        setCart((lines) => {
+          const addonKey = `${addon.id}-addon-para-${item.id}`;
+          const ex = lines.find((l) => `${l.id}-${l.observation}` === addonKey);
+          if (ex)
+            return lines.map((l) =>
+              `${l.id}-${l.observation}` === addonKey ? { ...l, quantity: l.quantity + quantity } : l
+            );
+          return [...lines, { ...addon, quantity, observation: `addon-para-${item.id}` }];
+        });
+      });
+    }
+  };
   const changeLine = (line: CartLine, qty: number) =>
     setCart((lines) =>
       qty <= 0
@@ -2560,7 +2701,8 @@ export default function Home() {
             i.id === line.id && i.observation === line.observation ? { ...i, quantity: qty } : i
           )
     );
-  const total = cart.reduce((s, i) => s + i.priceCents * i.quantity, 0);
+  const subtotal = cart.reduce((s, i) => s + i.priceCents * i.quantity, 0);
+  const { totalCents: total, surchargeCents, isCreditCard } = calcTotal(subtotal, paymentMethod);
 
   const submitOrder = () => {
     let modeToUse: ServiceMode = "customer";
@@ -2689,10 +2831,12 @@ export default function Home() {
   if (confirmationCode)
     return (
       <main className="site-shell">
-        <header className="site-header">
-          <Logo />
-          <span className="header-note">A chapa está trabalhando.</span>
-        </header>
+        <div className="sticky-top-panel">
+          <header className="site-header">
+            <Logo />
+            <span className="header-note">A chapa está trabalhando.</span>
+          </header>
+        </div>
         <Confirmation
           code={confirmationCode}
           onNewOrder={() => setConfirmationCode(null)}
@@ -2704,65 +2848,67 @@ export default function Home() {
 
   return (
     <main className="site-shell">
-      <header className="site-header">
-        <Logo />
-        <nav className="desktop-nav">
-          <a href="#cardapio">Cardápio</a>
-          <a href="#nossa-chapa">Nossa chapa</a>
-          <button onClick={handleSelectOps}>Área da equipe</button>
-        </nav>
-        <div className="header-actions">
-          <span className="header-note">
-            {isAuthenticated && user?.role === "admin"
-              ? `Olá, ${user.name?.split(" ")[0] ?? "equipe"}`
-              : "Feito na hora"}
-          </span>
-          <ModeBadge mode={serviceMode} onSwitch={() => setActiveView("mode-select")} />
-          <button className="header-bag" onClick={() => setCheckoutOpen(true)}>
-            <ShoppingBag size={18} />
-            <span>{cart.reduce((s, i) => s + i.quantity, 0)}</span>
-          </button>
-        </div>
-      </header>
+      <div className="sticky-top-panel">
+        <header className="site-header">
+          <Logo />
+          <nav className="desktop-nav">
+            <a href="#cardapio">Cardápio</a>
+            <a href="#nossa-chapa">Nossa chapa</a>
+            <button onClick={handleSelectOps}>Área da equipe</button>
+          </nav>
+          <div className="header-actions">
+            <span className="header-note">
+              {isAuthenticated && user?.role === "admin"
+                ? `Olá, ${user.name?.split(" ")[0] ?? "equipe"}`
+                : "Feito na hora"}
+            </span>
+            <ModeBadge mode={serviceMode} onSwitch={() => setActiveView("mode-select")} />
+            <button className="header-bag" onClick={() => setCheckoutOpen(true)} title="Ver Sacola">
+              <ShoppingBag size={18} />
+              <span>{cart.reduce((s, i) => s + i.quantity, 0)}</span>
+            </button>
+          </div>
+        </header>
 
-      {/* Waiter bar: shows table/customer name persistently */}
-      {serviceMode === "waiter" && (
-        <WaiterBar
-          tableName={tableName}
-          customerName={customerName}
-          onChange={(t, c) => {
-            setTableName(t);
-            setCustomerName(c);
-          }}
-        />
-      )}
+        {/* Waiter bar: shows table/customer name persistently */}
+        {serviceMode === "waiter" && (
+          <WaiterBar
+            tableName={tableName}
+            customerName={customerName}
+            onChange={(t, c) => {
+              setTableName(t);
+              setCustomerName(c);
+            }}
+          />
+        )}
 
-      {/* Counter mode top bar */}
-      {serviceMode === "counter" && (
-        <div
-          style={{
-            background: "#eff6ff",
-            borderBottom: "2px solid #93c5fd",
-            padding: ".5rem clamp(20px,8vw,140px)",
-            display: "flex",
-            alignItems: "center",
-            gap: ".75rem",
-          }}
-        >
-          <MonitorSmartphone size={15} style={{ color: "#2563eb" }} />
-          <span
+        {/* Counter mode top bar */}
+        {serviceMode === "counter" && (
+          <div
             style={{
-              fontSize: "11px",
-              fontWeight: 800,
-              color: "#2563eb",
-              textTransform: "uppercase",
-              letterSpacing: ".8px",
+              background: "#eff6ff",
+              borderBottom: "2px solid #93c5fd",
+              padding: ".5rem clamp(20px,8vw,140px)",
+              display: "flex",
+              alignItems: "center",
+              gap: ".75rem",
             }}
           >
-            Modo Balcão — Atendimento rápido
-          </span>
-        </div>
-      )}
+            <MonitorSmartphone size={15} style={{ color: "#2563eb" }} />
+            <span
+              style={{
+                fontSize: "11px",
+                fontWeight: 800,
+                color: "#2563eb",
+                textTransform: "uppercase",
+                letterSpacing: ".8px",
+              }}
+            >
+              Modo Balcão — Atendimento rápido
+            </span>
+          </div>
+        )}
+      </div>
 
       {/* Hero */}
       <section className="hero">
@@ -2938,13 +3084,20 @@ export default function Home() {
                 <div key={`${item.id}-${item.observation}`}>
                   <span>
                     {item.quantity}× {item.name}
-                    {item.observation && <small>↳ {item.observation}</small>}
+                    {item.observation && !item.observation.startsWith("addon-para-") && <small>↳ {item.observation}</small>}
+                    {item.observation?.startsWith("addon-para-") && <small style={{ color: "var(--brasa)" }}>✨ adicional</small>}
                   </span>
                   <strong>{money(item.priceCents * item.quantity)}</strong>
                 </div>
               ))}
+              {isCreditCard && surchargeCents > 0 && (
+                <div style={{ borderTop: "1px dashed #fde047", marginTop: 4 }}>
+                  <span style={{ color: "#92400e", fontSize: 11 }}>💳 Acréscimo crédito (5%)</span>
+                  <strong style={{ color: "#92400e" }}>+{money(surchargeCents)}</strong>
+                </div>
+              )}
               <div className="checkout-total">
-                <span>Total</span>
+                <span>Total{isCreditCard ? " c/ acréscimo" : ""}</span>
                 <strong>{money(total)}</strong>
               </div>
             </div>
@@ -3341,15 +3494,66 @@ export default function Home() {
             {/* Payment method */}
             <label className="field-label">
               💳 Intenção de Pagamento
-              <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+              <select value={paymentMethod} onChange={(e) => {
+                setPaymentMethod(e.target.value);
+                if (!e.target.value.includes("Crédito")) setCardBrand("");
+              }}>
                 <option value="Na entrega / fechamento">Na entrega / fechamento</option>
                 <option value="Pix">Pix</option>
-                <option value="Cartão Crédito">Cartão Crédito</option>
+                <option value="Cartão Crédito">Cartão Crédito (+5%)</option>
                 <option value="Cartão Débito">Cartão Débito</option>
                 <option value="Dinheiro">Dinheiro</option>
                 <option value="Vale Refeição">Vale Refeição</option>
               </select>
             </label>
+
+            {/* Card brand selector — only for credit card */}
+            {isCreditCard && (
+              <div style={{ marginBottom: 10 }}>
+                <span style={{
+                  display: "block",
+                  color: "var(--muted)",
+                  fontSize: 10,
+                  fontWeight: 800,
+                  textTransform: "uppercase",
+                  letterSpacing: ".6px",
+                  marginBottom: 6,
+                }}>Bandeira do Cartão</span>
+                <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+                  {ACCEPTED_CARD_BRANDS.map((brand) => (
+                    <button
+                      key={brand}
+                      type="button"
+                      onClick={() => setCardBrand(brand as CardBrand)}
+                      style={{
+                        padding: "6px 14px",
+                        borderRadius: 999,
+                        border: cardBrand === brand ? "2px solid var(--brasa)" : "1px solid var(--line)",
+                        background: cardBrand === brand ? "var(--chapa-900)" : "#fffaf0",
+                        color: cardBrand === brand ? "var(--cheddar)" : "var(--muted)",
+                        fontSize: 12,
+                        fontWeight: 800,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {brand}
+                    </button>
+                  ))}
+                </div>
+                <div style={{
+                  marginTop: 8,
+                  padding: "6px 10px",
+                  background: "#fef9c3",
+                  border: "1px solid #fde047",
+                  borderRadius: 7,
+                  fontSize: 11,
+                  color: "#92400e",
+                  fontWeight: 600,
+                }}>
+                  ⚠️ Acréscimo de 5% para pagamento no crédito: +{money(surchargeCents)}
+                </div>
+              </div>
+            )}
 
             <label className="field-label">
               Observação da comanda
