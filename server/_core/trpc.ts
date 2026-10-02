@@ -43,3 +43,47 @@ export const adminProcedure = t.procedure.use(
     });
   }),
 );
+
+export const requireStaff = t.middleware(async ({ ctx, next }) => {
+  if (!ctx.staffUser) {
+    throw new TRPCError({ code: "UNAUTHORIZED", message: "Sessão da equipe expirada ou inválida. Faça login novamente." });
+  }
+  return next({
+    ctx: {
+      ...ctx,
+      staffUser: ctx.staffUser,
+    },
+  });
+});
+
+export const staffProcedure = t.procedure.use(requireStaff);
+
+export type StaffRole = "garcom" | "caixa" | "cozinha" | "gerente" | "dono" | "administrador" | "master";
+
+export function staffRoleProcedure(roles: Array<StaffRole>) {
+  return t.procedure.use(
+    t.middleware(async ({ ctx, next }) => {
+      if (!ctx.staffUser) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Sessão da equipe expirada ou inválida. Faça login novamente." });
+      }
+      const role = ctx.staffUser.role as StaffRole;
+      const isMaster = role === "master" || role === "dono";
+      const isAllowed =
+        isMaster ||
+        roles.includes(role) ||
+        (role === "administrador" && roles.includes("gerente")) ||
+        (role === "gerente" && roles.includes("administrador"));
+
+      if (!isAllowed) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Seu perfil não tem permissão para acessar esta área ou operação." });
+      }
+      return next({
+        ctx: {
+          ...ctx,
+          staffUser: ctx.staffUser,
+        },
+      });
+    })
+  );
+}
+

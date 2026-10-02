@@ -26,7 +26,12 @@ import {
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { publicProcedure, router } from "./_core/trpc";
+import { staffAuthRouter } from "./staffAuthRouter";
+import { staffUsersRouter } from "./staffUsersRouter";
+import { qrSessionRouter } from "./qrSessionRouter";
+import { recordAudit } from "./staffDb";
+import type { TrpcContext } from "./_core/context";
 
 const orderItemSchema = z.object({
   productId: z.string().min(1),
@@ -37,15 +42,41 @@ const orderItemSchema = z.object({
   observation: z.string().max(240).optional().default(""),
 });
 
-const orderStatusSchema = z.enum(["received", "preparing", "ready", "completed", "cancelled"]);
+const orderStatusSchema = z.enum(["pending_waiter", "received", "preparing", "ready", "completed", "cancelled"]);
 const paymentMethodSchema = z.enum(["pix", "credito", "debito", "dinheiro", "vale_refeicao"]);
 
 function makeOrderCode() {
   return `MC-${Date.now().toString(36).slice(-5).toUpperCase()}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
 }
 
+function isStaffOrAdmin(ctx: TrpcContext): boolean {
+  return Boolean((ctx.user && ctx.user.role === "admin") || ctx.staffUser);
+}
+
+function hasRole(
+  ctx: TrpcContext,
+  roles: Array<"garcom" | "caixa" | "cozinha" | "gerente" | "dono" | "administrador" | "master">
+): boolean {
+  if (ctx.user && ctx.user.role === "admin") return true;
+  if (!ctx.staffUser) return false;
+  const role = ctx.staffUser.role as string;
+  if (role === "master" || role === "dono") return true; // Master tem controle total de todo o sistema!
+  if (roles.includes(role as any)) return true;
+  if (role === "administrador" && roles.includes("gerente")) return true;
+  if (role === "gerente" && roles.includes("administrador")) return true;
+  return false;
+}
+
+function getOperator(ctx: TrpcContext): string {
+  return ctx.staffUser?.name || ctx.user?.name || "Operador";
+}
+
 export const appRouter = router({
   system: systemRouter,
+  staffAuth: staffAuthRouter,
+  staffUsers: staffUsersRouter,
+  qrSession: qrSessionRouter,
+
   auth: router({
     me: publicProcedure.query((opts) => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
@@ -54,9 +85,11 @@ export const appRouter = router({
       return { success: true } as const;
     }),
   }),
+
   menu: router({
     list: publicProcedure.query(() => MENU),
   }),
+
   settings: router({
     getPaymentMethods: publicProcedure.query(async () => {
       return getStoreSetting<string[]>("active_payment_methods", [
@@ -67,14 +100,24 @@ export const appRouter = router({
         "Vale Refeição",
       ]);
     }),
-    setPaymentMethods: protectedProcedure
+    setPaymentMethods: publicProcedure
       .input(z.object({ methods: z.array(z.string()).min(1) }))
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Acesso restrito à equipe." });
+        if (!hasRole(ctx, ["gerente", "dono"])) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Acesso restrito à gerência/dono." });
+        }
         await setStoreSetting("active_payment_methods", input.methods);
+        await recordAudit({
+          action: "update_settings",
+          entity: "store_settings",
+          entityId: "active_payment_methods",
+          user: getOperator(ctx),
+          details: { methods: input.methods },
+        });
         return { success: true, methods: input.methods };
       }),
   }),
+
   orders: router({
     create: publicProcedure
       .input(
@@ -86,9 +129,17 @@ export const appRouter = router({
           paymentMethod: z.string().min(1).max(64),
           notes: z.string().max(600).optional(),
           items: z.array(orderItemSchema).min(1).max(40),
+          status: z.enum(["pending_waiter", "received"]).optional(),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
+        const isStaff = isStaffOrAdmin(ctx);
+
+        // Se o cliente enviar o pedido para validação ou for modo mesa sem autenticação de garçom,
+        // o pedido entra como 'pending_waiter' para o garçom conferir antes do preparo
+        const initialStatus: "pending_waiter" | "received" =
+          input.status ?? (input.serviceMode === "waiter" && !isStaff ? "pending_waiter" : "received");
+
         const menuById = new Map(MENU.map((item) => [item.id, item]));
         const normalizedItems = input.items.map((item) => {
           const catalogItem = menuById.get(item.productId);
@@ -104,6 +155,7 @@ export const appRouter = router({
             observation: item.observation ?? "",
           };
         });
+
         const totalCents = normalizedItems.reduce((sum, item) => sum + item.unitPriceCents * item.quantity, 0);
         const order = await createOrder({
           code: makeOrderCode(),
@@ -115,30 +167,54 @@ export const appRouter = router({
           notes: input.notes?.trim() || null,
           items: normalizedItems,
           totalCents,
-          status: "received",
+          status: initialStatus,
           financialStatus: "pending",
           paidCents: 0,
+          operatorName: getOperator(ctx),
         });
+
         return { order, menu: MENU };
       }),
+
     get: publicProcedure.input(z.object({ code: z.string().min(1) })).query(async ({ input }) => {
       const order = await getOrderByCode(input.code);
       if (!order) throw new TRPCError({ code: "NOT_FOUND", message: "Pedido não encontrado" });
       const payments = await getPaymentsForOrder(order.code);
       return { ...order, payments };
     }),
-    list: protectedProcedure.query(async ({ ctx }) => {
-      if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Acesso reservado à equipe." });
-      return listOrders();
+
+    list: publicProcedure.query(async ({ ctx }) => {
+      if (!isStaffOrAdmin(ctx)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Acesso reservado à equipe." });
+      }
+      const rawOrders = await listOrders();
+
+      // Perfil 'cozinha' acompanha a esteira sem ver pedidos ainda não validados pelo garçom
+      // e sem dados financeiros
+      if (ctx.staffUser?.role === "cozinha") {
+        return rawOrders
+          .filter((o) => o.status !== "pending_waiter")
+          .map((o) => ({
+            ...o,
+            totalCents: 0,
+            paidCents: 0,
+            payments: [],
+          }));
+      }
+
+      return rawOrders;
     }),
-    setStatus: protectedProcedure
+
+    setStatus: publicProcedure
       .input(z.object({ code: z.string().min(1), status: orderStatusSchema }))
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Acesso reservado à equipe." });
+        if (!hasRole(ctx, ["garcom", "caixa", "cozinha", "gerente", "dono"])) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Acesso reservado à equipe de atendimento/cozinha." });
+        }
         const existing = await getOrderByCode(input.code);
         if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Pedido não encontrado" });
 
-        // Regra de validação: Bloquear a finalização/entrega do pedido de balcão sem pagamento (exceto mesa aberta)
+        // Validação: Bloquear finalização/entrega de pedido de balcão sem pagamento
         if (input.status === "completed" && existing.serviceMode === "counter" && existing.financialStatus !== "paid") {
           throw new TRPCError({
             code: "BAD_REQUEST",
@@ -146,32 +222,61 @@ export const appRouter = router({
           });
         }
 
-        const order = await updateOrderStatus(input.code, input.status);
+        const operator = getOperator(ctx);
+        const order = await updateOrderStatus(input.code, input.status, operator);
+
+        await recordAudit({
+          action: "update_order_status",
+          entity: "orders",
+          entityId: input.code,
+          user: operator,
+          details: { oldStatus: existing.status, newStatus: input.status },
+        });
+
         return order;
       }),
-    cancel: protectedProcedure
+
+    cancel: publicProcedure
       .input(z.object({ code: z.string().min(1), reason: z.string().min(3, "Informe o motivo do cancelamento") }))
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Acesso reservado à gerência." });
-        const operator = ctx.user?.name || "Gerente";
+        if (!hasRole(ctx, ["gerente", "dono", "caixa"])) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Apenas o caixa ou gerência podem cancelar pedidos." });
+        }
+        const operator = getOperator(ctx);
         const order = await cancelOrder(input.code, input.reason, operator);
+
+        await recordAudit({
+          action: "cancel_order",
+          entity: "orders",
+          entityId: input.code,
+          user: operator,
+          details: { reason: input.reason },
+        });
+
         return order;
       }),
-    stats: protectedProcedure
+
+    stats: publicProcedure
       .input(z.object({ period: z.enum(["day", "week", "month", "year"]).default("day") }))
       .query(async ({ ctx, input }) => {
-        if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Acesso reservado à equipe." });
+        if (!hasRole(ctx, ["gerente", "dono"])) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Acesso aos relatórios restrito à gerência e dono." });
+        }
         return getOrderStats(input.period);
       }),
-    listByPeriod: protectedProcedure
+
+    listByPeriod: publicProcedure
       .input(z.object({ start: z.string(), end: z.string() }))
       .query(async ({ ctx, input }) => {
-        if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Acesso reservado à equipe." });
+        if (!hasRole(ctx, ["gerente", "dono"])) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Acesso restrito à gerência e dono." });
+        }
         return listOrdersByPeriod(new Date(input.start), new Date(input.end));
       }),
   }),
+
   payments: router({
-    create: protectedProcedure
+    create: publicProcedure
       .input(
         z.object({
           orderCode: z.string().min(1),
@@ -190,10 +295,11 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Acesso reservado à equipe." });
-        const operator = ctx.user?.name || "Atendente";
+        if (!hasRole(ctx, ["caixa", "gerente", "dono", "garcom"])) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Acesso reservado ao caixa ou gerência." });
+        }
+        const operator = getOperator(ctx);
 
-        // Check if any payment is in cash, verify active cash register
         const hasCash = input.items.some((i) => i.method === "dinheiro");
         const activeRegister = await getActiveCashRegister();
         if (hasCash && !activeRegister) {
@@ -221,29 +327,58 @@ export const appRouter = router({
           updatedOrder = res.order;
         }
 
+        await recordAudit({
+          action: "receive_payment",
+          entity: "orders",
+          entityId: input.orderCode,
+          user: operator,
+          details: { paymentsCount: input.items.length },
+        });
+
         return { payments: results, order: updatedOrder };
       }),
-    refund: protectedProcedure
+
+    refund: publicProcedure
       .input(z.object({ paymentId: z.number().int(), reason: z.string().min(3, "Informe o motivo do estorno") }))
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Acesso restrito à gerência." });
-        const user = ctx.user?.name || "Gerente";
-        return refundPayment(input.paymentId, input.reason, user);
+        if (!hasRole(ctx, ["gerente", "dono"])) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Apenas a gerência ou dono podem autorizar estornos." });
+        }
+        const operator = getOperator(ctx);
+        const res = await refundPayment(input.paymentId, input.reason, operator);
+
+        await recordAudit({
+          action: "refund_payment",
+          entity: "payments",
+          entityId: String(input.paymentId),
+          user: operator,
+          details: { reason: input.reason },
+        });
+
+        return res;
       }),
-    listForOrder: protectedProcedure
+
+    listForOrder: publicProcedure
       .input(z.object({ orderCode: z.string().min(1) }))
-      .query(async ({ input }) => {
+      .query(async ({ ctx, input }) => {
+        if (!isStaffOrAdmin(ctx)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Acesso reservado à equipe." });
+        }
         return getPaymentsForOrder(input.orderCode);
       }),
   }),
+
   cash: router({
-    getActive: protectedProcedure.query(async ({ ctx }) => {
-      if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Acesso reservado à equipe." });
+    getActive: publicProcedure.query(async ({ ctx }) => {
+      if (!hasRole(ctx, ["caixa", "gerente", "dono"])) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Acesso reservado ao caixa e gerência." });
+      }
       const active = await getActiveCashRegister();
       if (!active) return null;
       return getCashRegisterSummary(active.id);
     }),
-    open: protectedProcedure
+
+    open: publicProcedure
       .input(
         z.object({
           initialAmountCents: z.number().int().min(0, "Fundo de troco não pode ser negativo"),
@@ -251,12 +386,24 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Acesso reservado à equipe." });
-        const operator = input.operatorName || ctx.user?.name || "Operador";
+        if (!hasRole(ctx, ["caixa", "gerente", "dono"])) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Acesso reservado ao caixa e gerência." });
+        }
+        const operator = input.operatorName || getOperator(ctx);
         const register = await openCashRegister(operator, input.initialAmountCents);
+
+        await recordAudit({
+          action: "open_cash_register",
+          entity: "cash_registers",
+          entityId: String(register.id),
+          user: operator,
+          details: { initialAmountCents: input.initialAmountCents },
+        });
+
         return register;
       }),
-    movement: protectedProcedure
+
+    movement: publicProcedure
       .input(
         z.object({
           type: z.enum(["bleed", "supply", "expense"]),
@@ -265,12 +412,14 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Acesso reservado à equipe." });
+        if (!hasRole(ctx, ["caixa", "gerente", "dono"])) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Acesso reservado ao caixa e gerência." });
+        }
         const active = await getActiveCashRegister();
         if (!active) {
           throw new TRPCError({ code: "BAD_REQUEST", message: "Não há nenhum caixa aberto no momento." });
         }
-        const responsible = ctx.user?.name || "Operador";
+        const responsible = getOperator(ctx);
         const movement = await addCashMovement({
           cashRegisterId: active.id,
           type: input.type,
@@ -278,9 +427,19 @@ export const appRouter = router({
           reason: input.reason,
           responsible,
         });
+
+        await recordAudit({
+          action: `cash_movement_${input.type}`,
+          entity: "cash_movements",
+          entityId: String(movement.id),
+          user: responsible,
+          details: { amountCents: input.amountCents, reason: input.reason },
+        });
+
         return movement;
       }),
-    close: protectedProcedure
+
+    close: publicProcedure
       .input(
         z.object({
           countedCashCents: z.number().int().min(0, "Valor contado não pode ser negativo"),
@@ -288,12 +447,14 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Acesso reservado à gerência." });
+        if (!hasRole(ctx, ["caixa", "gerente", "dono"])) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Acesso reservado ao caixa e gerência." });
+        }
         const active = await getActiveCashRegister();
         if (!active) {
           throw new TRPCError({ code: "BAD_REQUEST", message: "Não há nenhum caixa aberto para fechar." });
         }
-        const operator = ctx.user?.name || "Gerente";
+        const operator = getOperator(ctx);
         const closed = await closeCashRegister({
           cashRegisterId: active.id,
           countedCashCents: input.countedCashCents,
@@ -301,29 +462,50 @@ export const appRouter = router({
           operatorName: operator,
         });
         const summary = await getCashRegisterSummary(active.id);
+
+        await recordAudit({
+          action: "close_cash_register",
+          entity: "cash_registers",
+          entityId: String(active.id),
+          user: operator,
+          details: { countedCashCents: input.countedCashCents, differenceCents: closed.differenceCents },
+        });
+
         return { register: closed, summary };
       }),
-    listRegisters: protectedProcedure.query(async ({ ctx }) => {
-      if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Acesso reservado à equipe." });
+
+    listRegisters: publicProcedure.query(async ({ ctx }) => {
+      if (!hasRole(ctx, ["caixa", "gerente", "dono"])) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Acesso reservado ao caixa e gerência." });
+      }
       return listCashRegisters(30);
     }),
-    listMovements: protectedProcedure
+
+    listMovements: publicProcedure
       .input(z.object({ cashRegisterId: z.number().int() }))
       .query(async ({ ctx, input }) => {
-        if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Acesso reservado à equipe." });
+        if (!hasRole(ctx, ["caixa", "gerente", "dono"])) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Acesso reservado ao caixa e gerência." });
+        }
         return listCashMovements(input.cashRegisterId);
       }),
-    getSummary: protectedProcedure
+
+    getSummary: publicProcedure
       .input(z.object({ cashRegisterId: z.number().int() }))
       .query(async ({ ctx, input }) => {
-        if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Acesso reservado à equipe." });
+        if (!hasRole(ctx, ["caixa", "gerente", "dono"])) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Acesso reservado ao caixa e gerência." });
+        }
         return getCashRegisterSummary(input.cashRegisterId);
       }),
   }),
+
   audit: router({
-    list: protectedProcedure.query(async ({ ctx }) => {
-      if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Acesso reservado à gerência/dono." });
-      return listAuditLogs(100);
+    list: publicProcedure.query(async ({ ctx }) => {
+      if (!hasRole(ctx, ["gerente", "dono"])) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Acesso restrito à gerência e dono." });
+      }
+      return listAuditLogs(150);
     }),
   }),
 });

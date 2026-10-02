@@ -5,18 +5,32 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
+import CustomerQRPage from "./pages/CustomerQRPage";
+import StaffLogin from "./pages/StaffLogin";
+import { OperationsPanel } from "./components/operations/OperationsPanel";
 
 function Router() {
-  // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
       <Route path={"/"} component={Home} />
+      <Route path={"/m/:token"} component={CustomerQRPage} />
+      <Route path={"/equipe/login"} component={StaffLogin} />
+      <Route path={"/equipe/painel"}>
+        {() => <OperationsPanel onBack={() => { window.location.href = "/"; }} />}
+      </Route>
+      <Route path={"/painel"}>
+        {() => <OperationsPanel onBack={() => { window.location.href = "/"; }} />}
+      </Route>
+      <Route path={"/ops"}>
+        {() => <OperationsPanel onBack={() => { window.location.href = "/"; }} />}
+      </Route>
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />
     </Switch>
   );
 }
+
 
 // NOTE: About Theme
 // - First choose a default theme according to your design style (dark or light bg), than change color palette in index.css

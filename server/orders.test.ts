@@ -19,6 +19,7 @@ const dbMocks = vi.hoisted(() => ({
   getStoreSetting: vi.fn(),
   setStoreSetting: vi.fn(),
   listAuditLogs: vi.fn(),
+  getDb: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock("./db", () => dbMocks);
@@ -118,7 +119,7 @@ describe("orders.create", () => {
   });
 
   it("rejects products outside the catalog", async () => {
-    const caller = appRouter.createCaller(context());
+    const caller = appRouter.createCaller(context(admin));
     await expect(
       caller.orders.create({
         origin: "Balcão",
@@ -137,13 +138,41 @@ describe("orders.create", () => {
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
     expect(dbMocks.createOrder).not.toHaveBeenCalled();
   });
+
+  it("creates a table order with pending_waiter status for waiter validation", async () => {
+    const caller = appRouter.createCaller(context());
+    await caller.orders.create({
+      origin: "Mesa no Salão",
+      serviceMode: "customer",
+      tableName: "Mesa 04",
+      customerName: "Carlos",
+      paymentMethod: "Cartão Crédito",
+      status: "pending_waiter",
+      items: [
+        {
+          productId: "x-salada",
+          name: "X-Salada",
+          category: "Hambúrgueres",
+          quantity: 1,
+          unitPriceCents: 1800,
+        },
+      ],
+    });
+    expect(dbMocks.createOrder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "pending_waiter",
+        tableName: "Mesa 04",
+        customerName: "Carlos",
+      })
+    );
+  });
 });
 
 describe("orders.setStatus", () => {
   it("allows an admin to advance a kitchen ticket to preparing", async () => {
     const caller = appRouter.createCaller(context(admin));
     const result = await caller.orders.setStatus({ code: "MC-123", status: "preparing" });
-    expect(dbMocks.updateOrderStatus).toHaveBeenCalledWith("MC-123", "preparing");
+    expect(dbMocks.updateOrderStatus).toHaveBeenCalledWith("MC-123", "preparing", expect.anything());
     expect(result).toMatchObject({ code: "MC-123", status: "preparing" });
   });
 
@@ -177,7 +206,7 @@ describe("orders.setStatus", () => {
       paidCents: 3500,
     });
     const res = await caller.orders.setStatus({ code: "MC-BALCAO-PAID", status: "completed" });
-    expect(dbMocks.updateOrderStatus).toHaveBeenCalledWith("MC-BALCAO-PAID", "completed");
+    expect(dbMocks.updateOrderStatus).toHaveBeenCalledWith("MC-BALCAO-PAID", "completed", expect.anything());
     expect(res).toBeDefined();
   });
 

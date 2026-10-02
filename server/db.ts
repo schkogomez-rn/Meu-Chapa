@@ -119,12 +119,15 @@ export async function getOrderByCode(code: string) {
   return result[0];
 }
 
-export async function updateOrderStatus(code: string, status: InsertOrder["status"]) {
+export async function updateOrderStatus(code: string, status: InsertOrder["status"], operatorName?: string) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  await db.update(orders).set({ status, updatedAt: new Date() }).where(eq(orders.code, code));
+  const updateData: Record<string, unknown> = { status, updatedAt: new Date() };
+  if (operatorName) updateData.operatorName = operatorName;
+  await db.update(orders).set(updateData).where(eq(orders.code, code));
   return getOrderByCode(code);
 }
+
 
 export async function cancelOrder(code: string, reason: string, user: string) {
   const db = await getDb();

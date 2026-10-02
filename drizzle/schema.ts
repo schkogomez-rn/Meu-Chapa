@@ -1,12 +1,70 @@
-import { integer, json, pgEnum, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { boolean, integer, json, pgEnum, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
 
 export const roleEnum = pgEnum("role", ["user", "admin"]);
-export const orderStatusEnum = pgEnum("order_status", ["received", "preparing", "ready", "completed", "cancelled"]);
+export const staffRoleEnum = pgEnum("staff_role", [
+  "garcom",
+  "caixa",
+  "cozinha",
+  "gerente",
+  "dono",
+  "administrador",
+  "master",
+]);
+export const tableSessionStatusEnum = pgEnum("table_session_status", ["active", "closed"]);
+export const orderStatusEnum = pgEnum("order_status", [
+  "pending_waiter",
+  "received",
+  "preparing",
+  "ready",
+  "completed",
+  "cancelled",
+]);
 export const financialStatusEnum = pgEnum("financial_status", ["pending", "partial", "paid", "refunded", "cancelled"]);
 export const paymentMethodEnum = pgEnum("payment_method", ["pix", "credito", "debito", "dinheiro", "vale_refeicao"]);
 export const paymentStatusEnum = pgEnum("payment_status", ["confirmed", "refunded"]);
 export const cashRegisterStatusEnum = pgEnum("cash_register_status", ["open", "closed"]);
 export const cashMovementTypeEnum = pgEnum("cash_movement_type", ["bleed", "supply", "expense"]);
+
+export const staffUsers = pgTable("staff_users", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  username: varchar("username", { length: 64 }).notNull().unique(),
+  passwordHash: text("passwordHash").notNull(),
+  role: staffRoleEnum("role").default("garcom").notNull(),
+  pin: varchar("pin", { length: 6 }),
+  active: boolean("active").default(true).notNull(),
+  mustChangePassword: boolean("mustChangePassword").default(false).notNull(),
+  failedAttempts: integer("failedAttempts").default(0).notNull(),
+  lockedUntil: timestamp("lockedUntil"),
+  lastLoginAt: timestamp("lastLoginAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export const tableSessions = pgTable("table_sessions", {
+  id: serial("id").primaryKey(),
+  tableName: varchar("tableName", { length: 64 }).notNull(),
+  token: varchar("token", { length: 128 }).notNull().unique(),
+  customerName: varchar("customerName", { length: 120 }),
+  status: tableSessionStatusEnum("status").default("active").notNull(),
+  openedAt: timestamp("openedAt").defaultNow().notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  closedAt: timestamp("closedAt"),
+  lastOrderAt: timestamp("lastOrderAt"),
+  orderCount: integer("orderCount").default(0).notNull(),
+});
+
+export const staffSessions = pgTable("staff_sessions", {
+  id: serial("id").primaryKey(),
+  userId: integer("userId").notNull(),
+  token: varchar("token", { length: 128 }).notNull().unique(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  ipAddress: varchar("ipAddress", { length: 64 }),
+  userAgent: text("userAgent"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  lastActiveAt: timestamp("lastActiveAt").defaultNow().notNull(),
+});
+
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -114,3 +172,10 @@ export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = typeof auditLogs.$inferInsert;
 export type StoreSetting = typeof storeSettings.$inferSelect;
 export type InsertStoreSetting = typeof storeSettings.$inferInsert;
+export type StaffUser = typeof staffUsers.$inferSelect;
+export type InsertStaffUser = typeof staffUsers.$inferInsert;
+export type TableSession = typeof tableSessions.$inferSelect;
+export type InsertTableSession = typeof tableSessions.$inferInsert;
+export type StaffSession = typeof staffSessions.$inferSelect;
+export type InsertStaffSession = typeof staffSessions.$inferInsert;
+

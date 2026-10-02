@@ -9,6 +9,8 @@ import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { runStaffMigration } from "../migrateStaffAndSessions";
+
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -47,7 +49,8 @@ async function startServer() {
     })
   );
   // development mode uses Vite, production mode uses static files
-  if (process.env.NODE_ENV === "development") {
+  const isRunningFromDist = import.meta.url.includes("/dist/") || import.meta.url.includes("\\dist\\");
+  if (process.env.NODE_ENV === "development" && !isRunningFromDist) {
     await setupVite(app, server);
   } else {
     serveStatic(app);
@@ -60,9 +63,12 @@ async function startServer() {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
+  await runStaffMigration().catch(console.error);
+
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
   });
+
 }
 
 startServer().catch(console.error);

@@ -24,6 +24,7 @@ import {
   ShieldAlert,
   FileSpreadsheet,
   AlertCircle,
+  UtensilsCrossed,
 } from "lucide-react";
 import {
   Bar,
@@ -43,6 +44,7 @@ import { startLogin } from "@/const";
 import { Button } from "@/components/ui/button";
 import { MENU_CATEGORIES, type MenuCategory, type MenuItem } from "../../../shared/menu";
 import { trpc } from "@/lib/trpc";
+import { OperationsPanel } from "@/components/operations/OperationsPanel";
 import { ReceivePaymentModal } from "@/components/financial/ReceivePaymentModal";
 import { CashRegisterControl } from "@/components/financial/CashRegisterControl";
 import { CancelRefundModal } from "@/components/financial/CancelRefundModal";
@@ -321,10 +323,12 @@ function Cart({
 }
 
 function Confirmation({ code, onNewOrder }: { code: string; onNewOrder: () => void }) {
-  const query = trpc.orders.get.useQuery({ code }, { refetchInterval: 10000 });
+  const query = trpc.orders.get.useQuery({ code }, { refetchInterval: 4000 });
   const order = query.data;
-  const labels: Record<OrderStatus, string> = {
-    received: "Pedido recebido",
+  const isPendingWaiter = order?.status === "pending_waiter";
+  const labels: Record<string, string> = {
+    pending_waiter: "Aguardando validação do garçom",
+    received: "Confirmado na chapa",
     preparing: "Na chapa",
     ready: "Pronto para sair",
     completed: "Entregue",
@@ -332,24 +336,43 @@ function Confirmation({ code, onNewOrder }: { code: string; onNewOrder: () => vo
   };
   return (
     <section className="confirmation-card">
-      <div className="confirmation-icon">
-        <Check size={30} />
+      <div
+        className="confirmation-icon"
+        style={{
+          background: isPendingWaiter ? "rgba(245, 158, 11, 0.2)" : "rgba(34, 197, 94, 0.2)",
+          color: isPendingWaiter ? "#f59e0b" : "#22c55e",
+        }}
+      >
+        {isPendingWaiter ? <Clock3 size={32} /> : <Check size={32} />}
       </div>
-      <span className="eyebrow">pedido enviado</span>
-      <h1>Deixa com a chapa.</h1>
+      <span className="eyebrow">{isPendingWaiter ? "validação pendente" : "pedido enviado"}</span>
+      <h1>{isPendingWaiter ? "Aguardando o Garçom" : "Deixa com a chapa."}</h1>
       <p>
-        Seu pedido <strong>#{code}</strong> foi registrado. A cozinha já recebeu os detalhes.
+        Seu pedido <strong>#{code}</strong> foi registrado para{" "}
+        <strong>{order?.tableName || order?.origin || "sua comanda"}</strong>.
+        {isPendingWaiter
+          ? " O garçom foi notificado e virá à sua mesa conferir o pedido para liberá-lo para a cozinha."
+          : " A cozinha já recebeu os detalhes e está preparando seu burger na chapa."}
       </p>
       <div className="order-status">
-        <span className="status-dot" />
-        {order ? labels[order.status] : "Confirmando na cozinha"}
+        <span
+          className="status-dot"
+          style={{ background: isPendingWaiter ? "#f59e0b" : "#22c55e" }}
+        />
+        {order ? labels[order.status] ?? order.status : "Confirmando no sistema..."}
       </div>
       <div className="status-steps">
-        <span className={order?.status !== "cancelled" ? "active" : ""}>
-          <ReceiptText size={16} /> Recebido
+        <span className={order?.status === "pending_waiter" ? "active" : ""}>
+          <Clock3 size={16} /> Garçom
         </span>
-        <span className={["preparing", "ready", "completed"].includes(order?.status ?? "") ? "active" : ""}>
-          <Flame size={16} /> Na chapa
+        <span
+          className={
+            ["received", "preparing", "ready", "completed"].includes(order?.status ?? "")
+              ? "active"
+              : ""
+          }
+        >
+          <Flame size={16} /> Cozinha
         </span>
         <span className={["ready", "completed"].includes(order?.status ?? "") ? "active" : ""}>
           <Check size={16} /> Pronto
@@ -2481,17 +2504,37 @@ export default function Home() {
   const createOrder = trpc.orders.create.useMutation();
   const { user, isAuthenticated } = useAuth();
 
-  const [activeView, setActiveView] = useState<"mode-select" | "order" | "ops">("mode-select");
-  const [serviceMode, setServiceMode] = useState<ServiceMode>("customer");
+  const [activeView, setActiveView] = useState<"mode-select" | "order" | "ops">(() => {
+    const params = new URLSearchParams(window.location.search);
+    const m = (params.get("modo") || params.get("destino") || "").toLowerCase();
+    if (m === "ops" || m === "painel") return "ops";
+    if (m === "garcom" || m === "waiter" || m === "counter" || m === "balcao") return "order";
+    return "mode-select";
+  });
+  const [serviceMode, setServiceMode] = useState<ServiceMode>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const m = (params.get("modo") || params.get("destino") || "").toLowerCase();
+    if (m === "garcom" || m === "waiter") return "waiter";
+    if (m === "balcao" || m === "counter") return "counter";
+    return "customer";
+  });
   const [category, setCategory] = useState<MenuCategory | "Todos">("Todos");
   const [cart, setCart] = useState<CartLine[]>([]);
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
-  const [tableName, setTableName] = useState("");
+  const [tableName, setTableName] = useState("Mesa 01");
   const [customerName, setCustomerName] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("Na entrega / fechamento");
   const [notes, setNotes] = useState("");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [confirmationCode, setConfirmationCode] = useState<string | null>(null);
+  const [checkoutServiceType, setCheckoutServiceType] = useState<"table" | "waiter" | "counter">(() => {
+    const params = new URLSearchParams(window.location.search);
+    const m = (params.get("modo") || params.get("destino") || "").toLowerCase();
+    if (m === "garcom" || m === "waiter") return "waiter";
+    if (m === "balcao" || m === "counter") return "counter";
+    return "table";
+  });
+  const [waiterValidation, setWaiterValidation] = useState(true);
 
   const menu = menuQuery.data ?? [];
   const visibleMenu = useMemo(
@@ -2520,19 +2563,38 @@ export default function Home() {
   const total = cart.reduce((s, i) => s + i.priceCents * i.quantity, 0);
 
   const submitOrder = () => {
-    const originMap: Record<ServiceMode, string> = {
-      customer: "Cliente via QR Code",
-      waiter: "Garçom / Mesa",
-      counter: "Balcão",
-    };
+    let modeToUse: ServiceMode = "customer";
+    let finalOrigin = "Mesa no Salão";
+    let finalTable = tableName.trim();
+    const finalCustName = customerName.trim();
+
+    if (checkoutServiceType === "counter") {
+      modeToUse = "counter";
+      finalOrigin = "Balcão";
+      if (!finalTable) finalTable = "Balcão 01";
+    } else if (checkoutServiceType === "waiter") {
+      modeToUse = "waiter";
+      finalOrigin = "Garçom / Atendimento";
+      if (!finalTable) finalTable = "Mesa 01";
+    } else {
+      modeToUse = "customer";
+      finalOrigin = "Mesa no Salão";
+      if (!finalTable) finalTable = "Mesa 01";
+    }
+
+    const orderStatus: "pending_waiter" | "received" = waiterValidation
+      ? "pending_waiter"
+      : "received";
+
     createOrder.mutate(
       {
-        origin: originMap[serviceMode],
-        serviceMode,
-        tableName: tableName || undefined,
-        customerName: customerName || undefined,
+        origin: finalOrigin,
+        serviceMode: modeToUse,
+        tableName: finalTable || undefined,
+        customerName: finalCustName || undefined,
         paymentMethod,
         notes: notes || undefined,
+        status: orderStatus,
         items: cart.map((i) => ({
           productId: i.id,
           name: i.name,
@@ -2553,20 +2615,76 @@ export default function Home() {
     );
   };
 
+  const staffQuery = trpc.staffAuth.me.useQuery(undefined, { retry: false });
+  const staffUser = staffQuery.data;
+
+  const [tableToken, setTableToken] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem("meu_chapa_qr_token");
+    } catch {
+      return null;
+    }
+  });
+
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const mode = params.get("mode");
+    if (mode === "ops") {
+      setActiveView("ops");
+    } else if (mode === "waiter") {
+      setServiceMode("waiter");
+      setActiveView("order");
+    } else if (mode === "counter") {
+      setServiceMode("counter");
+      setActiveView("order");
+    }
+  }, []);
+
+  const handleSelectMode = (mode: ServiceMode) => {
+    if (mode === "customer") {
+      setServiceMode("customer");
+      setActiveView("order");
+      return;
+    }
+    if (mode === "waiter") {
+      if (staffUser && ["garcom", "gerente", "dono", "administrador", "master"].includes(staffUser.role)) {
+        setServiceMode("waiter");
+        setActiveView("order");
+      } else {
+        window.location.href = "/equipe/login?destino=waiter";
+      }
+      return;
+    }
+    if (mode === "counter") {
+      if (staffUser && ["caixa", "gerente", "dono", "administrador", "master"].includes(staffUser.role)) {
+        setServiceMode("counter");
+        setActiveView("order");
+      } else {
+        window.location.href = "/equipe/login?destino=counter";
+      }
+      return;
+    }
+  };
+
+  const handleSelectOps = () => {
+    if (staffUser && ["cozinha", "gerente", "dono", "administrador", "master"].includes(staffUser.role)) {
+      setActiveView("ops");
+    } else {
+      window.location.href = "/equipe/login?destino=ops";
+    }
+  };
+
   // Mode selector screen
   if (activeView === "mode-select") {
     return (
       <ServiceModePicker
-        onSelect={(mode) => {
-          setServiceMode(mode);
-          setActiveView("order");
-        }}
-        onOps={() => setActiveView("ops")}
+        onSelect={handleSelectMode}
+        onOps={handleSelectOps}
       />
     );
   }
 
-  if (activeView === "ops") return <Operations onBack={() => setActiveView("mode-select")} />;
+  if (activeView === "ops") return <OperationsPanel onBack={() => setActiveView("mode-select")} />;
 
   if (confirmationCode)
     return (
@@ -2591,7 +2709,7 @@ export default function Home() {
         <nav className="desktop-nav">
           <a href="#cardapio">Cardápio</a>
           <a href="#nossa-chapa">Nossa chapa</a>
-          <button onClick={() => setActiveView("ops")}>Área da equipe</button>
+          <button onClick={handleSelectOps}>Área da equipe</button>
         </nav>
         <div className="header-actions">
           <span className="header-note">
@@ -2831,37 +2949,394 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Mode-specific fields */}
-            {serviceMode === "waiter" && (
-              <div className="form-grid">
-                <label className="field-label">
-                  Mesa / identificação
-                  <input
-                    value={tableName}
-                    onChange={(e) => setTableName(e.target.value)}
-                    placeholder="Ex.: Mesa 08"
+            {/* Seletor de Modo de Atendimento (Mesas / Garçom / Balcão) */}
+            <div style={{ marginTop: "16px", marginBottom: "12px" }}>
+              <span
+                style={{
+                  display: "block",
+                  color: "var(--muted)",
+                  fontSize: "11px",
+                  fontWeight: 800,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.6px",
+                  marginBottom: "8px",
+                }}
+              >
+                📍 Onde você quer receber seu pedido?
+              </span>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr 1fr",
+                  gap: "8px",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCheckoutServiceType("table");
+                    if (!tableName || tableName.startsWith("Balcão")) setTableName("Mesa 01");
+                  }}
+                  style={{
+                    padding: "10px 6px",
+                    borderRadius: "10px",
+                    border:
+                      checkoutServiceType === "table"
+                        ? "2px solid var(--brasa)"
+                        : "1px solid var(--line)",
+                    background:
+                      checkoutServiceType === "table"
+                        ? "rgba(240, 123, 23, 0.12)"
+                        : "#fffdf9",
+                    color:
+                      checkoutServiceType === "table"
+                        ? "var(--chapa-900)"
+                        : "var(--muted)",
+                    cursor: "pointer",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: "4px",
+                    textAlign: "center",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  <UtensilsCrossed
+                    size={20}
+                    style={{
+                      color:
+                        checkoutServiceType === "table"
+                          ? "var(--brasa)"
+                          : "var(--muted)",
+                    }}
                   />
+                  <strong
+                    style={{
+                      fontSize: "12px",
+                      textTransform: "uppercase",
+                      fontFamily: "Oswald, sans-serif",
+                    }}
+                  >
+                    Mesa
+                  </strong>
+                  <span style={{ fontSize: "10px", lineHeight: 1.1 }}>No Salão</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCheckoutServiceType("waiter");
+                    if (!tableName || tableName.startsWith("Balcão")) setTableName("Mesa 01");
+                  }}
+                  style={{
+                    padding: "10px 6px",
+                    borderRadius: "10px",
+                    border:
+                      checkoutServiceType === "waiter"
+                        ? "2px solid #2563eb"
+                        : "1px solid var(--line)",
+                    background:
+                      checkoutServiceType === "waiter"
+                        ? "rgba(37, 99, 235, 0.12)"
+                        : "#fffdf9",
+                    color:
+                      checkoutServiceType === "waiter"
+                        ? "#1e3a8a"
+                        : "var(--muted)",
+                    cursor: "pointer",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: "4px",
+                    textAlign: "center",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  <Users
+                    size={20}
+                    style={{
+                      color:
+                        checkoutServiceType === "waiter" ? "#2563eb" : "var(--muted)",
+                    }}
+                  />
+                  <strong
+                    style={{
+                      fontSize: "12px",
+                      textTransform: "uppercase",
+                      fontFamily: "Oswald, sans-serif",
+                    }}
+                  >
+                    Garçom
+                  </strong>
+                  <span style={{ fontSize: "10px", lineHeight: 1.1 }}>
+                    Atendimento
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCheckoutServiceType("counter");
+                    if (!tableName || tableName.startsWith("Mesa")) setTableName("Balcão 01");
+                  }}
+                  style={{
+                    padding: "10px 6px",
+                    borderRadius: "10px",
+                    border:
+                      checkoutServiceType === "counter"
+                        ? "2px solid #16a34a"
+                        : "1px solid var(--line)",
+                    background:
+                      checkoutServiceType === "counter"
+                        ? "rgba(22, 163, 74, 0.12)"
+                        : "#fffdf9",
+                    color:
+                      checkoutServiceType === "counter"
+                        ? "#14532d"
+                        : "var(--muted)",
+                    cursor: "pointer",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: "4px",
+                    textAlign: "center",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  <ShoppingBag
+                    size={20}
+                    style={{
+                      color:
+                        checkoutServiceType === "counter" ? "#16a34a" : "var(--muted)",
+                    }}
+                  />
+                  <strong
+                    style={{
+                      fontSize: "12px",
+                      textTransform: "uppercase",
+                      fontFamily: "Oswald, sans-serif",
+                    }}
+                  >
+                    Balcão
+                  </strong>
+                  <span style={{ fontSize: "10px", lineHeight: 1.1 }}>
+                    Retirada
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Opções específicas do modo selecionado */}
+            {(checkoutServiceType === "table" || checkoutServiceType === "waiter") && (
+              <div style={{ marginBottom: "14px" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "6px",
+                  }}
+                >
+                  <label
+                    className="field-label"
+                    style={{ margin: 0, fontSize: "10px", fontWeight: 800 }}
+                  >
+                    Selecione a Mesa
+                  </label>
+                  {tableName && (
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 800,
+                        color: "var(--brasa)",
+                      }}
+                    >
+                      {tableName}
+                    </span>
+                  )}
+                </div>
+
+                {/* Chips de mesas rápidas */}
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "6px",
+                    overflowX: "auto",
+                    paddingBottom: "6px",
+                    scrollbarWidth: "thin",
+                  }}
+                >
+                  {[
+                    "Mesa 01",
+                    "Mesa 02",
+                    "Mesa 03",
+                    "Mesa 04",
+                    "Mesa 05",
+                    "Mesa 06",
+                    "Mesa 07",
+                    "Mesa 08",
+                    "Mesa 09",
+                    "Mesa 10",
+                    "Mesa 11",
+                    "Mesa 12",
+                  ].map((m) => {
+                    const isSel = tableName === m;
+                    return (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setTableName(m)}
+                        style={{
+                          flexShrink: 0,
+                          padding: "5px 11px",
+                          borderRadius: "20px",
+                          border: isSel
+                            ? "2px solid var(--brasa)"
+                            : "1px solid var(--line)",
+                          background: isSel ? "var(--brasa)" : "#fffaf0",
+                          color: isSel ? "#fff" : "var(--ink)",
+                          fontSize: "11px",
+                          fontWeight: isSel ? 800 : 600,
+                          cursor: "pointer",
+                          transition: "all 0.15s ease",
+                        }}
+                      >
+                        {m}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="form-grid" style={{ marginTop: "8px" }}>
+                  <label className="field-label" style={{ margin: 0 }}>
+                    Mesa / Identificação
+                    <input
+                      value={tableName}
+                      onChange={(e) => setTableName(e.target.value)}
+                      placeholder="Ex.: Mesa 03 ou Varanda"
+                    />
+                  </label>
+                  <label className="field-label" style={{ margin: 0 }}>
+                    Nome do Cliente (opcional)
+                    <input
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      placeholder="Ex.: João"
+                    />
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {checkoutServiceType === "counter" && (
+              <div style={{ marginBottom: "14px" }}>
+                <label
+                  className="field-label"
+                  style={{ marginBottom: "6px", fontSize: "10px", fontWeight: 800 }}
+                >
+                  Ponto de Retirada
                 </label>
-                <label className="field-label">
-                  Nome do cliente
+                <div style={{ display: "flex", gap: "6px", marginBottom: "8px" }}>
+                  {["Balcão 01", "Balcão 02", "Retirada Rápida"].map((b) => {
+                    const isSel = tableName === b;
+                    return (
+                      <button
+                        key={b}
+                        type="button"
+                        onClick={() => setTableName(b)}
+                        style={{
+                          padding: "5px 12px",
+                          borderRadius: "20px",
+                          border: isSel
+                            ? "2px solid #16a34a"
+                            : "1px solid var(--line)",
+                          background: isSel ? "#16a34a" : "#fffaf0",
+                          color: isSel ? "#fff" : "var(--ink)",
+                          fontSize: "11px",
+                          fontWeight: isSel ? 800 : 600,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {b}
+                      </button>
+                    );
+                  })}
+                </div>
+                <label className="field-label" style={{ margin: 0 }}>
+                  Nome ou Senha para Retirada
                   <input
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder="Ex.: João"
+                    placeholder="Ex.: Senha 42 / Carlos"
                   />
                 </label>
               </div>
             )}
-            {serviceMode === "counter" && (
-              <label className="field-label">
-                Nome / senha de retirada
+
+            {/* Caixa de Validação do Garçom */}
+            <div
+              style={{
+                background: waiterValidation ? "#fffbeb" : "#f8fafc",
+                border: waiterValidation
+                  ? "1px solid #fde68a"
+                  : "1px solid var(--line)",
+                borderRadius: "10px",
+                padding: "10px 12px",
+                margin: "10px 0 14px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "8px",
+              }}
+            >
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  cursor: "pointer",
+                  margin: 0,
+                  userSelect: "none",
+                }}
+              >
                 <input
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="Ex.: Senha 42 / Maria"
+                  type="checkbox"
+                  checked={waiterValidation}
+                  onChange={(e) => setWaiterValidation(e.target.checked)}
+                  style={{
+                    width: "18px",
+                    height: "18px",
+                    accentColor: "#d97706",
+                    cursor: "pointer",
+                  }}
                 />
+                <div>
+                  <span
+                    style={{
+                      display: "block",
+                      fontSize: "12px",
+                      fontWeight: 800,
+                      color: waiterValidation ? "#92400e" : "var(--ink)",
+                    }}
+                  >
+                    🛎️ Enviar para validação do Garçom antes da cozinha
+                  </span>
+                  <span
+                    style={{
+                      display: "block",
+                      fontSize: "11px",
+                      color: waiterValidation ? "#b45309" : "var(--muted)",
+                      lineHeight: 1.3,
+                      marginTop: "2px",
+                    }}
+                  >
+                    {waiterValidation
+                      ? "O pedido chega primeiro na coluna 'Aguardando Garçom'. O garçom confere na mesa e autoriza para a chapa com 1 clique."
+                      : "O pedido será disparado diretamente para a esteira da cozinha/chapa."}
+                  </span>
+                </div>
               </label>
-            )}
+            </div>
 
             {/* Payment method */}
             <label className="field-label">
@@ -2888,11 +3363,47 @@ export default function Home() {
 
             <Button
               className="primary-button full"
+              style={{
+                background: waiterValidation
+                  ? "linear-gradient(135deg, #d97706, #b45309)"
+                  : checkoutServiceType === "counter"
+                  ? "linear-gradient(135deg, #16a34a, #15803d)"
+                  : "linear-gradient(135deg, #ea580c, #c2410c)",
+                color: "#fff",
+                fontSize: "13px",
+                fontWeight: 800,
+                textTransform: "uppercase",
+                letterSpacing: "0.5px",
+                padding: "14px",
+                borderRadius: "10px",
+                boxShadow: waiterValidation
+                  ? "0 4px 14px rgba(217, 119, 6, 0.35)"
+                  : "0 4px 14px rgba(234, 88, 12, 0.35)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+                cursor: "pointer",
+                marginTop: "12px",
+              }}
               disabled={createOrder.isPending || cart.length === 0}
               onClick={submitOrder}
             >
-              {createOrder.isPending ? "Enviando para a chapa…" : "Enviar pedido"}{" "}
-              <ArrowRight size={17} />
+              {createOrder.isPending ? (
+                "Enviando pedido..."
+              ) : waiterValidation ? (
+                <>
+                  <Clock3 size={17} /> Enviar Pedido p/ Validação do Garçom
+                </>
+              ) : checkoutServiceType === "counter" ? (
+                <>
+                  <ShoppingBag size={17} /> Enviar Pedido para o Balcão
+                </>
+              ) : (
+                <>
+                  <Flame size={17} /> Enviar Pedido Direto para a Chapa
+                </>
+              )}
             </Button>
             <p className="secure-note">
               <CircleDollarSign size={15} /> Preço confirmado no servidor e pedido registrado com
