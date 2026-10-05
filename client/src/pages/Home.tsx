@@ -517,7 +517,7 @@ function ServiceModePicker({
   onSelect: (m: ServiceMode) => void;
   onOps: () => void;
 }) {
-  const [activeTab, setActiveTab] = useState<"all" | "customer" | "team">("all");
+  const [activeTab, setActiveTab] = useState<"customer" | "team">("customer");
 
   return (
     <div className="service-picker-wrapper">
@@ -557,13 +557,6 @@ function ServiceModePicker({
           <div className="service-picker-tabs">
             <button
               type="button"
-              className={`picker-tab ${activeTab === "all" ? "active" : ""}`}
-              onClick={() => setActiveTab("all")}
-            >
-              <Sparkles size={14} /> Todos os Ambientes
-            </button>
-            <button
-              type="button"
               className={`picker-tab ${activeTab === "customer" ? "active" : ""}`}
               onClick={() => setActiveTab("customer")}
             >
@@ -580,11 +573,11 @@ function ServiceModePicker({
         </header>
 
         {/* Environments Grid */}
-        <div className={`service-environments-grid ${activeTab !== "all" ? "single-focus" : ""}`}>
+        <div className="service-environments-grid single-focus">
           {/* ══════════════════════════════════════════
               AMBIENTE DO CLIENTE (Autoatendimento & Cardápio)
              ══════════════════════════════════════════ */}
-          {(activeTab === "all" || activeTab === "customer") && (
+          {activeTab === "customer" && (
             <section className="environment-card customer-portal">
               <div className="card-top-tag">
                 <span className="tag-badge customer">
@@ -648,7 +641,7 @@ function ServiceModePicker({
           {/* ══════════════════════════════════════════
               AMBIENTE DA EQUIPE (Salão, Balcão e Cozinha)
              ══════════════════════════════════════════ */}
-          {(activeTab === "all" || activeTab === "team") && (
+          {activeTab === "team" && (
             <section className="environment-card team-portal">
               <div className="card-top-tag">
                 <span className="tag-badge team">
