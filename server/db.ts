@@ -109,7 +109,26 @@ export async function createOrder(order: InsertOrder) {
 export async function listOrders(limit = 100) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(orders).orderBy(desc(orders.createdAt)).limit(limit);
+  const rawOrders = await db.select().from(orders).orderBy(desc(orders.createdAt)).limit(limit);
+  if (rawOrders.length === 0) return [];
+
+  const orderCodes = rawOrders.map((o) => o.code);
+  const rawPayments = await db
+    .select()
+    .from(payments)
+    .where(inArray(payments.orderCode, orderCodes));
+
+  const paymentsMap = new Map<string, typeof rawPayments>();
+  for (const p of rawPayments) {
+    const list = paymentsMap.get(p.orderCode) || [];
+    list.push(p);
+    paymentsMap.set(p.orderCode, list);
+  }
+
+  return rawOrders.map((o) => ({
+    ...o,
+    payments: paymentsMap.get(o.code) || [],
+  }));
 }
 
 export async function getOrderByCode(code: string) {
@@ -595,7 +614,7 @@ export async function getOrderStats(period: "day" | "week" | "month" | "year") {
   const limit = { day: 30, week: 12, month: 12, year: 5 }[period];
 
   // Confirmed payments breakdown (REAL revenue by payment method)
-  const byPaymentRows = await db.execute(sql`
+  let byPaymentRows = await db.execute(sql`
     SELECT
       p.method as "paymentMethod",
       count(p.id)::int as count,
@@ -603,35 +622,59 @@ export async function getOrderStats(period: "day" | "week" | "month" | "year") {
     FROM payments p
     JOIN orders o ON o.code = p."orderCode"
     WHERE p.status = 'confirmed' AND o.status != 'cancelled'
+      AND p."createdAt" >= date_trunc(${period}::text, now())
     GROUP BY p.method
     ORDER BY revenue DESC
   `).catch(() => ({ rows: [] }));
 
-  // Totals from confirmed payments only
+  // Fallback to orders if payments table has no records for the period
+  if ((byPaymentRows as any).rows.length === 0) {
+    byPaymentRows = await db.execute(sql`
+      SELECT
+        CASE
+          WHEN lower(o."paymentMethod") LIKE '%pix%' THEN 'pix'
+          WHEN lower(o."paymentMethod") LIKE '%crédito%' OR lower(o."paymentMethod") LIKE '%credito%' THEN 'credito'
+          WHEN lower(o."paymentMethod") LIKE '%débito%' OR lower(o."paymentMethod") LIKE '%debito%' THEN 'debito'
+          WHEN lower(o."paymentMethod") LIKE '%dinheiro%' THEN 'dinheiro'
+          WHEN lower(o."paymentMethod") LIKE '%refeição%' OR lower(o."paymentMethod") LIKE '%refeicao%' OR lower(o."paymentMethod") LIKE '%vr%' THEN 'vale_refeicao'
+          ELSE 'dinheiro'
+        END as "paymentMethod",
+        count(o.id)::int as count,
+        coalesce(sum(o."paidCents"), coalesce(sum(o."totalCents"), 0))::int as revenue
+      FROM orders o
+      WHERE o.status != 'cancelled' AND (o."financialStatus" = 'paid' OR o."paidCents" > 0)
+        AND o."createdAt" >= date_trunc(${period}::text, now())
+      GROUP BY 1
+      ORDER BY revenue DESC
+    `).catch(() => ({ rows: [] }));
+  }
+
+  // Totals from confirmed payments or paid orders
   const totalsRows = await db.execute(sql`
     SELECT
       count(DISTINCT o.id)::int as orders,
-      coalesce(sum(p."amountCents"), 0)::int as revenue,
+      coalesce(sum(coalesce(p."amountCents", o."paidCents")), 0)::int as revenue,
       case 
-        when count(DISTINCT o.id) > 0 then (coalesce(sum(p."amountCents"), 0) / count(DISTINCT o.id))::int
+        when count(DISTINCT o.id) > 0 then (coalesce(sum(coalesce(p."amountCents", o."paidCents")), 0) / count(DISTINCT o.id))::int
         else 0
       end as "avgTicket"
     FROM orders o
     LEFT JOIN payments p ON p."orderCode" = o.code AND p.status = 'confirmed'
-    WHERE o.status != 'cancelled'
+    WHERE o.status != 'cancelled' AND (o."financialStatus" = 'paid' OR o."paidCents" > 0 OR p.id IS NOT NULL)
+      AND o."createdAt" >= date_trunc(${period}::text, now())
   `).catch(() => ({ rows: [] }));
 
   // By Date grouping
   const byDateRaw = await db.execute(sql`
     SELECT
-      to_char(date_trunc(${period}::text, p."createdAt"), 'YYYY-MM-DD') as label,
-      count(DISTINCT p."orderCode")::int as orders,
-      coalesce(sum(p."amountCents"), 0)::int as revenue
-    FROM payments p
-    JOIN orders o ON o.code = p."orderCode"
-    WHERE p.status = 'confirmed' AND o.status != 'cancelled'
-    GROUP BY date_trunc(${period}::text, p."createdAt")
-    ORDER BY date_trunc(${period}::text, p."createdAt") DESC
+      to_char(date_trunc(${period}::text, coalesce(p."createdAt", o."createdAt")), 'YYYY-MM-DD') as label,
+      count(DISTINCT o.code)::int as orders,
+      coalesce(sum(coalesce(p."amountCents", o."paidCents")), 0)::int as revenue
+    FROM orders o
+    LEFT JOIN payments p ON p."orderCode" = o.code AND p.status = 'confirmed'
+    WHERE o.status != 'cancelled' AND (o."financialStatus" = 'paid' OR o."paidCents" > 0 OR p.id IS NOT NULL)
+    GROUP BY date_trunc(${period}::text, coalesce(p."createdAt", o."createdAt"))
+    ORDER BY date_trunc(${period}::text, coalesce(p."createdAt", o."createdAt")) DESC
     LIMIT ${limit}
   `).catch(() => ({ rows: [] }));
 
@@ -645,6 +688,7 @@ export async function getOrderStats(period: "day" | "week" | "month" | "year") {
       CASE jsonb_typeof(items::jsonb) WHEN 'array' THEN items::jsonb ELSE '[]'::jsonb END
     ) as item
     WHERE status != 'cancelled'
+      AND "createdAt" >= date_trunc(${period}::text, now())
     GROUP BY item->>'name'
     ORDER BY qty DESC
     LIMIT 10

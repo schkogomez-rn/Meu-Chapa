@@ -340,38 +340,48 @@ export function CashRegisterControl({ onRefreshNeeded }: Props) {
       {/* Modal Abertura */}
       {modalMode === "open" && (
         <div className="modal-backdrop" onMouseDown={() => setModalMode(null)}>
-          <div className="modal-card" style={{ maxWidth: 420 }} onMouseDown={(e) => e.stopPropagation()}>
+          <div className="modal-card" style={{ maxWidth: 420, color: "var(--ink)" }} onMouseDown={(e) => e.stopPropagation()}>
             <div className="modal-head">
               <div>
-                <span className="eyebrow">Controle de Turno</span>
-                <h2>Abertura de Caixa</h2>
+                <span className="eyebrow" style={{ color: "#b45309", fontWeight: 800 }}>Controle de Turno</span>
+                <h2 style={{ color: "var(--chapa-900)" }}>Abertura de Caixa</h2>
               </div>
               <button className="icon-button" onClick={() => setModalMode(null)}>
                 <X size={18} />
               </button>
             </div>
-            <p style={{ fontSize: 12, color: "var(--muted)", margin: "8px 0 16px" }}>
+            <p style={{ fontSize: 13, color: "#6b5849", margin: "8px 0 16px", lineHeight: 1.5 }}>
               Informe o valor inicial disponível para troco (fundo de gaveta) e o nome do atendente/operador.
             </p>
-            <label className="field-label">
+            <label className="field-label" style={{ color: "#43220f", fontWeight: 800 }}>
               Operador Responsável
               <input
                 placeholder="Ex.: Carlos / Caixa 1"
                 value={operatorStr}
                 onChange={(e) => setOperatorStr(e.target.value)}
+                style={{ color: "var(--ink)", fontWeight: 600, background: "#fffaf0", border: "1.5px solid var(--line)" }}
               />
             </label>
-            <label className="field-label">
+            <label className="field-label" style={{ color: "#43220f", fontWeight: 800 }}>
               Fundo de Troco Inicial (R$)
               <input
                 placeholder="Ex.: 100,00"
                 value={amountStr}
                 onChange={(e) => setAmountStr(e.target.value)}
+                style={{ color: "var(--ink)", fontSize: 16, fontWeight: 700, background: "#fffaf0", border: "1.5px solid var(--line)" }}
               />
             </label>
             <Button
               className="primary-button full"
               disabled={openMutation.isPending}
+              style={{
+                color: "#1a0802",
+                fontWeight: 800,
+                fontSize: 14,
+                padding: "12px",
+                background: "linear-gradient(135deg, #ffd44c, #f07b17)",
+                cursor: openMutation.isPending ? "not-allowed" : "pointer",
+              }}
               onClick={() => {
                 const cents = parseCents(amountStr);
                 openMutation.mutate({
@@ -389,11 +399,11 @@ export function CashRegisterControl({ onRefreshNeeded }: Props) {
       {/* Modal Movimentação (Sangria / Suprimento / Despesa) */}
       {modalMode === "movement" && (
         <div className="modal-backdrop" onMouseDown={() => setModalMode(null)}>
-          <div className="modal-card" style={{ maxWidth: 440 }} onMouseDown={(e) => e.stopPropagation()}>
+          <div className="modal-card" style={{ maxWidth: 440, color: "var(--ink)" }} onMouseDown={(e) => e.stopPropagation()}>
             <div className="modal-head">
               <div>
-                <span className="eyebrow">Controle de Caixa</span>
-                <h2>
+                <span className="eyebrow" style={{ color: "#b45309", fontWeight: 800 }}>Controle de Caixa</span>
+                <h2 style={{ color: "var(--chapa-900)" }}>
                   {movementType === "bleed"
                     ? "Sangria de Caixa"
                     : movementType === "supply"
@@ -405,72 +415,95 @@ export function CashRegisterControl({ onRefreshNeeded }: Props) {
                 <X size={18} />
               </button>
             </div>
-            <div style={{ display: "flex", gap: 8, margin: "12px 0" }}>
+            <div style={{ display: "flex", gap: 8, margin: "14px 0" }}>
               <button
+                type="button"
                 onClick={() => setMovementType("bleed")}
                 style={{
                   flex: 1,
-                  padding: "6px 8px",
-                  borderRadius: 6,
-                  border: `1px solid ${movementType === "bleed" ? "#b45309" : "var(--line)"}`,
-                  background: movementType === "bleed" ? "#fef3c7" : "white",
-                  fontSize: 11,
-                  fontWeight: 700,
+                  padding: "9px 8px",
+                  borderRadius: 8,
+                  border: movementType === "bleed" ? "2px solid #b45309" : "1.5px solid var(--line)",
+                  background: movementType === "bleed" ? "#fef3c7" : "#fffaf0",
+                  color: movementType === "bleed" ? "#92400e" : "#573014",
+                  fontSize: 12,
+                  fontWeight: movementType === "bleed" ? 800 : 700,
                   cursor: "pointer",
+                  boxShadow: movementType === "bleed" ? "0 2px 8px rgba(180, 83, 9, 0.15)" : "none",
+                  transition: "all 0.15s ease",
                 }}
               >
                 Sangria (Retirada)
               </button>
               <button
+                type="button"
                 onClick={() => setMovementType("supply")}
                 style={{
                   flex: 1,
-                  padding: "6px 8px",
-                  borderRadius: 6,
-                  border: `1px solid ${movementType === "supply" ? "#15803d" : "var(--line)"}`,
-                  background: movementType === "supply" ? "#dcfce7" : "white",
-                  fontSize: 11,
-                  fontWeight: 700,
+                  padding: "9px 8px",
+                  borderRadius: 8,
+                  border: movementType === "supply" ? "2px solid #16a34a" : "1.5px solid var(--line)",
+                  background: movementType === "supply" ? "#dcfce7" : "#fffaf0",
+                  color: movementType === "supply" ? "#14532d" : "#573014",
+                  fontSize: 12,
+                  fontWeight: movementType === "supply" ? 800 : 700,
                   cursor: "pointer",
+                  boxShadow: movementType === "supply" ? "0 2px 8px rgba(22, 163, 74, 0.15)" : "none",
+                  transition: "all 0.15s ease",
                 }}
               >
                 Suprimento (Entrada)
               </button>
               <button
+                type="button"
                 onClick={() => setMovementType("expense")}
                 style={{
                   flex: 1,
-                  padding: "6px 8px",
-                  borderRadius: 6,
-                  border: `1px solid ${movementType === "expense" ? "#dc2626" : "var(--line)"}`,
-                  background: movementType === "expense" ? "#fee2e2" : "white",
-                  fontSize: 11,
-                  fontWeight: 700,
+                  padding: "9px 8px",
+                  borderRadius: 8,
+                  border: movementType === "expense" ? "2px solid #dc2626" : "1.5px solid var(--line)",
+                  background: movementType === "expense" ? "#fee2e2" : "#fffaf0",
+                  color: movementType === "expense" ? "#991b1b" : "#573014",
+                  fontSize: 12,
+                  fontWeight: movementType === "expense" ? 800 : 700,
                   cursor: "pointer",
+                  boxShadow: movementType === "expense" ? "0 2px 8px rgba(220, 38, 38, 0.15)" : "none",
+                  transition: "all 0.15s ease",
                 }}
               >
                 Despesa
               </button>
             </div>
-            <label className="field-label">
+            <label className="field-label" style={{ color: "#43220f", fontWeight: 800 }}>
               Valor (R$)
               <input
                 placeholder="0,00"
                 value={amountStr}
                 onChange={(e) => setAmountStr(e.target.value)}
+                style={{ color: "var(--ink)", fontWeight: 700, fontSize: 16, background: "#fffaf0", border: "1.5px solid var(--line)" }}
               />
             </label>
-            <label className="field-label">
+            <label className="field-label" style={{ color: "#43220f", fontWeight: 800 }}>
               Motivo / Justificativa (Obrigatório)
               <input
                 placeholder="Ex.: Recolhimento para cofre / Compra de gelo"
                 value={reasonStr}
                 onChange={(e) => setReasonStr(e.target.value)}
+                style={{ color: "var(--ink)", fontWeight: 600, fontSize: 13, background: "#fffaf0", border: "1.5px solid var(--line)" }}
               />
             </label>
             <Button
               className="primary-button full"
               disabled={movementMutation.isPending || !reasonStr.trim()}
+              style={{
+                color: "#1a0802",
+                fontWeight: 800,
+                fontSize: 14,
+                padding: "12px",
+                background: "linear-gradient(135deg, #ffd44c, #f07b17)",
+                opacity: (!reasonStr.trim() || movementMutation.isPending) ? 0.6 : 1,
+                cursor: (!reasonStr.trim() || movementMutation.isPending) ? "not-allowed" : "pointer",
+              }}
               onClick={() => {
                 const cents = parseCents(amountStr);
                 if (cents <= 0) return alert("Informe um valor válido.");
@@ -490,11 +523,11 @@ export function CashRegisterControl({ onRefreshNeeded }: Props) {
       {/* Modal Fechamento de Caixa */}
       {modalMode === "close" && active && (
         <div className="modal-backdrop" onMouseDown={() => setModalMode(null)}>
-          <div className="modal-card" style={{ maxWidth: 500 }} onMouseDown={(e) => e.stopPropagation()}>
+          <div className="modal-card" style={{ maxWidth: 500, color: "var(--ink)" }} onMouseDown={(e) => e.stopPropagation()}>
             <div className="modal-head">
               <div>
-                <span className="eyebrow">Fechamento do Turno</span>
-                <h2>Conferência de Caixa #{active.register.id}</h2>
+                <span className="eyebrow" style={{ color: "#b45309", fontWeight: 800 }}>Fechamento do Turno</span>
+                <h2 style={{ color: "var(--chapa-900)" }}>Conferência de Caixa #{active.register.id}</h2>
               </div>
               <button className="icon-button" onClick={() => setModalMode(null)}>
                 <X size={18} />
@@ -505,38 +538,39 @@ export function CashRegisterControl({ onRefreshNeeded }: Props) {
             <div
               style={{
                 background: "#f8fafc",
-                border: "1px solid var(--line)",
+                border: "1.5px solid var(--line)",
                 borderRadius: 8,
                 padding: 12,
                 fontSize: 12,
+                color: "var(--ink)",
                 margin: "12px 0",
               }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", color: "#374151" }}>
                 <span>(+) Fundo Inicial Troco:</span>
-                <b>{money(active.totals.initialAmountCents)}</b>
+                <b style={{ color: "#111827" }}>{money(active.totals.initialAmountCents)}</b>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", color: "#374151" }}>
                 <span>(+) Vendas em Dinheiro:</span>
-                <b>{money(active.totals.cashSalesCents)}</b>
+                <b style={{ color: "#111827" }}>{money(active.totals.cashSalesCents)}</b>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", color: "#374151" }}>
                 <span>(+) Suprimentos:</span>
-                <b>{money(active.totals.suppliesCents)}</b>
+                <b style={{ color: "#15803d" }}>{money(active.totals.suppliesCents)}</b>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", color: "#374151" }}>
                 <span>(-) Sangrias:</span>
-                <b>{money(active.totals.bleedsCents)}</b>
+                <b style={{ color: "#b45309" }}>{money(active.totals.bleedsCents)}</b>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", color: "#374151" }}>
                 <span>(-) Despesas Pagas:</span>
-                <b>{money(active.totals.expensesCents)}</b>
+                <b style={{ color: "#dc2626" }}>{money(active.totals.expensesCents)}</b>
               </div>
               <div
                 style={{
                   borderTop: "1.5px dashed var(--line)",
                   marginTop: 6,
-                  paddingTop: 6,
+                  paddingTop: 8,
                   display: "flex",
                   justifyContent: "space-between",
                   fontSize: 13,
@@ -545,17 +579,17 @@ export function CashRegisterControl({ onRefreshNeeded }: Props) {
                 }}
               >
                 <span>Esperado na Gaveta:</span>
-                <span style={{ color: "var(--brasa)" }}>{money(active.totals.expectedCashCents)}</span>
+                <span style={{ color: "var(--brasa)", fontSize: 15, fontWeight: 900 }}>{money(active.totals.expectedCashCents)}</span>
               </div>
             </div>
 
-            <label className="field-label">
+            <label className="field-label" style={{ color: "#43220f", fontWeight: 800 }}>
               Valor em Dinheiro Contado na Gaveta (R$)
               <input
                 placeholder="Ex.: 450,00"
                 value={countedCashStr}
                 onChange={(e) => setCountedCashStr(e.target.value)}
-                style={{ fontSize: 14, fontWeight: 700 }}
+                style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", background: "#fffaf0", border: "1.5px solid var(--line)" }}
               />
             </label>
 
@@ -589,30 +623,40 @@ export function CashRegisterControl({ onRefreshNeeded }: Props) {
                   {parseCents(countedCashStr) - active.totals.expectedCashCents === 0 ? (
                     <b style={{ color: "#166534" }}>✓ Caixa bateu perfeitamente!</b>
                   ) : parseCents(countedCashStr) - active.totals.expectedCashCents > 0 ? (
-                    <span style={{ color: "#1e40af" }}>Sobra de Caixa:</span>
+                    <span style={{ color: "#1e40af", fontWeight: 700 }}>Sobra de Caixa:</span>
                   ) : (
-                    <span style={{ color: "#991b1b" }}>Falta de Caixa:</span>
+                    <span style={{ color: "#991b1b", fontWeight: 700 }}>Falta de Caixa:</span>
                   )}
                 </span>
-                <strong style={{ fontSize: 14 }}>
+                <strong style={{ fontSize: 14, color: "var(--chapa-900)" }}>
                   {money(parseCents(countedCashStr) - active.totals.expectedCashCents)}
                 </strong>
               </div>
             )}
 
-            <label className="field-label">
+            <label className="field-label" style={{ color: "#43220f", fontWeight: 800 }}>
               Observações do Fechamento
               <textarea
                 rows={2}
                 placeholder="Ex.: Sangria final enviada ao malote..."
                 value={closeNotes}
                 onChange={(e) => setCloseNotes(e.target.value)}
+                style={{ color: "var(--ink)", background: "#fffaf0", border: "1.5px solid var(--line)" }}
               />
             </label>
 
             <Button
               className="primary-button full"
               disabled={closeMutation.isPending || !countedCashStr}
+              style={{
+                color: "#1a0802",
+                fontWeight: 800,
+                fontSize: 14,
+                padding: "12px",
+                background: "linear-gradient(135deg, #ffd44c, #f07b17)",
+                opacity: (!countedCashStr || closeMutation.isPending) ? 0.6 : 1,
+                cursor: (!countedCashStr || closeMutation.isPending) ? "not-allowed" : "pointer",
+              }}
               onClick={() => {
                 closeMutation.mutate({
                   countedCashCents: parseCents(countedCashStr),

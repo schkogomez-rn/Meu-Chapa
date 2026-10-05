@@ -2,11 +2,14 @@ import React, { useState } from "react";
 import {
   AlertCircle,
   ArrowRight,
+  Banknote,
   BarChart3,
   Check,
+  CheckCircle2,
   ChefHat,
   CircleDollarSign,
   Clock3,
+  CreditCard,
   FileSpreadsheet,
   Flame,
   LockKeyhole,
@@ -15,6 +18,7 @@ import {
   Plus,
   Printer,
   QrCode,
+  Receipt,
   ReceiptText,
   RefreshCw,
   Shield,
@@ -90,6 +94,62 @@ interface StoredOrder {
 
 const PIE_COLORS = ["#ffc400", "#f07b17", "#5c823b", "#3b82f6", "#d97706", "#8b5cf6", "#ef4444"];
 
+function getPaymentMethodDisplay(methodStr: string, brand?: string | null) {
+  const m = (methodStr || "").toLowerCase();
+  if (m.includes("pix")) {
+    return {
+      label: "Pix",
+      icon: "💠",
+      color: "#34d399",
+      bg: "rgba(16, 185, 129, 0.15)",
+      border: "rgba(16, 185, 129, 0.4)",
+    };
+  }
+  if (m.includes("crédito") || m.includes("credito")) {
+    return {
+      label: brand ? `Crédito (${brand})` : "Cartão de Crédito",
+      icon: "💳",
+      color: "#fbbf24",
+      bg: "rgba(245, 158, 11, 0.15)",
+      border: "rgba(245, 158, 11, 0.4)",
+    };
+  }
+  if (m.includes("débito") || m.includes("debito")) {
+    return {
+      label: "Cartão de Débito",
+      icon: "💳",
+      color: "#60a5fa",
+      bg: "rgba(59, 130, 246, 0.15)",
+      border: "rgba(59, 130, 246, 0.4)",
+    };
+  }
+  if (m.includes("dinheiro")) {
+    return {
+      label: "Dinheiro",
+      icon: "💵",
+      color: "#4ade80",
+      bg: "rgba(34, 197, 94, 0.15)",
+      border: "rgba(34, 197, 94, 0.4)",
+    };
+  }
+  if (m.includes("vale") || m.includes("refei") || m.includes("vr")) {
+    return {
+      label: "Vale Refeição (VR)",
+      icon: "🎟️",
+      color: "#a78bfa",
+      bg: "rgba(139, 92, 246, 0.15)",
+      border: "rgba(139, 92, 246, 0.4)",
+    };
+  }
+  return {
+    label: methodStr || "Outro",
+    icon: "💳",
+    color: "#ffd44c",
+    bg: "rgba(255, 196, 0, 0.15)",
+    border: "rgba(255, 196, 0, 0.4)",
+  };
+}
+
 export function OperationsPanel({ onBack }: { onBack: () => void }) {
   const staffMe = trpc.staffAuth.me.useQuery();
   const staffUser = staffMe.data;
@@ -124,6 +184,13 @@ export function OperationsPanel({ onBack }: { onBack: () => void }) {
 
   const orders = (ordersQuery.data ?? []) as unknown as StoredOrder[];
 
+  const unpaidReadyOrDelivered = orders.filter(
+    (o) => (o.status === "ready" || o.status === "completed") && o.financialStatus !== "paid"
+  );
+  const paidOrders = orders.filter(
+    (o) => o.financialStatus === "paid" || (o.paidCents || 0) > 0 || (o.payments && o.payments.length > 0)
+  );
+
   // Determine allowed tabs by role
   const availableTabs: PillTab<OpsTab>[] = [
     {
@@ -139,6 +206,7 @@ export function OperationsPanel({ onBack }: { onBack: () => void }) {
       id: "financial",
       label: "Financeiro & Caixa",
       icon: <CircleDollarSign size={15} />,
+      badge: unpaidReadyOrDelivered.length > 0 ? unpaidReadyOrDelivered.length : undefined,
     });
   }
 
@@ -553,90 +621,769 @@ export function OperationsPanel({ onBack }: { onBack: () => void }) {
             TAB 2: FINANCEIRO & CAIXA
            ═════════════════════════════════════════════════════════════════════ */}
         {tab === "financial" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-            <CashRegisterControl />
+          <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
+            {/* Bloco 1: Abertura, Sangrias, Suprimentos e Fechamento de Caixa */}
+            <CashRegisterControl onRefreshNeeded={() => ordersQuery.refetch()} />
+
+            {/* Bloco 2: Pedidos Prontos para Entrega Sem Pagamento */}
+            <div
+              style={{
+                background: "linear-gradient(160deg, rgba(32, 17, 10, 0.95), rgba(20, 10, 6, 0.98))",
+                border: unpaidReadyOrDelivered.length > 0 ? "1px solid rgba(239, 68, 68, 0.5)" : "1px solid rgba(255, 196, 0, 0.22)",
+                borderRadius: "16px",
+                padding: "20px 24px",
+                boxShadow: "0 8px 30px rgba(0,0,0,0.35)",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: "12px",
+                  marginBottom: "16px",
+                  paddingBottom: "14px",
+                  borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <div
+                    style={{
+                      width: "38px",
+                      height: "38px",
+                      borderRadius: "10px",
+                      background: unpaidReadyOrDelivered.length > 0 ? "rgba(239, 68, 68, 0.2)" : "rgba(34, 197, 94, 0.2)",
+                      color: unpaidReadyOrDelivered.length > 0 ? "#ef4444" : "#22c55e",
+                      display: "grid",
+                      placeItems: "center",
+                    }}
+                  >
+                    <Clock3 size={20} />
+                  </div>
+                  <div>
+                    <h3
+                      style={{
+                        fontFamily: "Oswald, sans-serif",
+                        fontSize: "20px",
+                        color: "#fff",
+                        textTransform: "uppercase",
+                        margin: 0,
+                        letterSpacing: "0.5px",
+                      }}
+                    >
+                      Pedidos Prontos para Entrega • Aguardando Pagamento
+                    </h3>
+                    <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#a8947f" }}>
+                      Pedidos finalizados na chapa ou já entregues que ainda necessitam da baixa do pagamento.
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+                  <span
+                    style={{
+                      background: unpaidReadyOrDelivered.length > 0 ? "rgba(239, 68, 68, 0.2)" : "rgba(34, 197, 94, 0.2)",
+                      color: unpaidReadyOrDelivered.length > 0 ? "#fca5a5" : "#86efac",
+                      border: `1px solid ${unpaidReadyOrDelivered.length > 0 ? "rgba(239, 68, 68, 0.4)" : "rgba(34, 197, 94, 0.4)"}`,
+                      borderRadius: "999px",
+                      padding: "4px 12px",
+                      fontSize: "12px",
+                      fontWeight: 800,
+                    }}
+                  >
+                    {unpaidReadyOrDelivered.length} a cobrar
+                  </span>
+                  {unpaidReadyOrDelivered.length > 0 && (
+                    <span
+                      style={{
+                        fontFamily: "Oswald, sans-serif",
+                        fontSize: "17px",
+                        color: "#ffd44c",
+                        fontWeight: 700,
+                      }}
+                    >
+                      Total a Receber:{" "}
+                      {formatMoney(
+                        unpaidReadyOrDelivered.reduce(
+                          (sum, o) => sum + Math.max(0, o.totalCents - (o.paidCents || 0)),
+                          0
+                        )
+                      )}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {unpaidReadyOrDelivered.length === 0 ? (
+                <div
+                  style={{
+                    background: "rgba(34, 197, 94, 0.08)",
+                    border: "1px dashed rgba(34, 197, 94, 0.3)",
+                    borderRadius: "12px",
+                    padding: "24px",
+                    textAlign: "center",
+                    color: "#86efac",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: "6px",
+                  }}
+                >
+                  <CheckCircle2 size={28} style={{ color: "#22c55e" }} />
+                  <strong style={{ fontSize: "14px" }}>Caixa 100% em dia!</strong>
+                  <span style={{ fontSize: "12px", color: "#a8947f" }}>
+                    Nenhum pedido pronto ou entregue pendente de pagamento no momento.
+                  </span>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+                    gap: "14px",
+                  }}
+                >
+                  {unpaidReadyOrDelivered.map((order) => {
+                    const items = (Array.isArray(order.items) ? order.items : []) as any[];
+                    const balanceDue = Math.max(0, order.totalCents - (order.paidCents || 0));
+                    return (
+                      <div
+                        key={order.code}
+                        style={{
+                          background: "rgba(20, 10, 6, 0.85)",
+                          border: "1px solid rgba(245, 158, 11, 0.35)",
+                          borderLeft: "4px solid #f59e0b",
+                          borderRadius: "12px",
+                          padding: "14px",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "10px",
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                          <div>
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                              <strong style={{ fontFamily: "Oswald, sans-serif", fontSize: "17px", color: "#fff" }}>
+                                #{order.code}
+                              </strong>
+                              <span
+                                style={{
+                                  fontSize: "10px",
+                                  fontWeight: 800,
+                                  padding: "2px 8px",
+                                  borderRadius: "6px",
+                                  background: order.status === "ready" ? "rgba(37, 99, 235, 0.2)" : "rgba(34, 197, 94, 0.2)",
+                                  color: order.status === "ready" ? "#60a5fa" : "#86efac",
+                                  border: `1px solid ${order.status === "ready" ? "rgba(37, 99, 235, 0.4)" : "rgba(34, 197, 94, 0.4)"}`,
+                                }}
+                              >
+                                {order.status === "ready" ? "Pronto p/ Entrega" : "Entregue ao Cliente"}
+                              </span>
+                            </div>
+                            <span style={{ display: "block", fontSize: "12px", color: "var(--cheddar)", marginTop: "2px" }}>
+                              {order.tableName || order.origin} {order.customerName ? `• ${order.customerName}` : ""}
+                            </span>
+                          </div>
+                          <span style={{ fontSize: "11px", color: "#a8947f" }}>
+                            {formatTimeOnly(order.createdAt)}
+                          </span>
+                        </div>
+
+                        {/* Items summary */}
+                        <div style={{ fontSize: "11px", color: "#d6be9f", lineHeight: 1.4 }}>
+                          {items.map((i, idx) => (
+                            <span key={idx}>
+                              {idx > 0 && " • "}
+                              {i.quantity}x {i.name}
+                            </span>
+                          ))}
+                        </div>
+
+                        {/* Payment alert and action */}
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            paddingTop: "10px",
+                            borderTop: "1px dashed rgba(255,255,255,0.08)",
+                          }}
+                        >
+                          <div>
+                            <span style={{ display: "block", fontSize: "10px", color: "#a8947f", textTransform: "uppercase" }}>
+                              Saldo a Receber
+                            </span>
+                            <strong style={{ fontFamily: "Oswald, sans-serif", fontSize: "18px", color: "#f87171" }}>
+                              {formatMoney(balanceDue)}
+                            </strong>
+                            {(order.paidCents || 0) > 0 && (
+                              <span style={{ display: "block", fontSize: "10px", color: "#86efac" }}>
+                                (Já pago: {formatMoney(order.paidCents || 0)})
+                              </span>
+                            )}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => setReceivingOrder(order)}
+                            style={{
+                              background: "linear-gradient(135deg, #22c55e, #16a34a)",
+                              color: "#fff",
+                              border: 0,
+                              borderRadius: "8px",
+                              padding: "8px 14px",
+                              fontSize: "11px",
+                              fontWeight: 800,
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "6px",
+                              boxShadow: "0 2px 10px rgba(34, 197, 94, 0.4)",
+                            }}
+                          >
+                            <CreditCard size={14} /> Receber / Dar Baixa
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Bloco 3: Histórico de Recebimentos & Formas de Pagamento Efetivadas */}
+            <div
+              style={{
+                background: "linear-gradient(160deg, rgba(32, 17, 10, 0.95), rgba(20, 10, 6, 0.98))",
+                border: "1px solid rgba(255, 196, 0, 0.22)",
+                borderRadius: "16px",
+                padding: "20px 24px",
+                boxShadow: "0 8px 30px rgba(0,0,0,0.35)",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: "12px",
+                  marginBottom: "16px",
+                  paddingBottom: "14px",
+                  borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <div
+                    style={{
+                      width: "38px",
+                      height: "38px",
+                      borderRadius: "10px",
+                      background: "rgba(34, 197, 94, 0.2)",
+                      color: "#22c55e",
+                      display: "grid",
+                      placeItems: "center",
+                    }}
+                  >
+                    <CheckCircle2 size={20} />
+                  </div>
+                  <div>
+                    <h3
+                      style={{
+                        fontFamily: "Oswald, sans-serif",
+                        fontSize: "20px",
+                        color: "#fff",
+                        textTransform: "uppercase",
+                        margin: 0,
+                        letterSpacing: "0.5px",
+                      }}
+                    >
+                      Recebimentos Efetivados & Formas de Pagamento
+                    </h3>
+                    <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#a8947f" }}>
+                      Discriminação das formas de pagamento efetivadas nos pedidos quitados.
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                  <span
+                    style={{
+                      background: "rgba(255, 196, 0, 0.15)",
+                      color: "#ffd44c",
+                      border: "1px solid rgba(255, 196, 0, 0.3)",
+                      borderRadius: "999px",
+                      padding: "4px 12px",
+                      fontSize: "12px",
+                      fontWeight: 800,
+                    }}
+                  >
+                    {paidOrders.length} pedido(s) quitado(s)
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: "Oswald, sans-serif",
+                      fontSize: "18px",
+                      color: "#86efac",
+                      fontWeight: 700,
+                    }}
+                  >
+                    Total Recebido:{" "}
+                    {formatMoney(
+                      paidOrders.reduce((sum, o) => sum + (o.paidCents || o.totalCents || 0), 0)
+                    )}
+                  </span>
+                </div>
+              </div>
+
+              {paidOrders.length === 0 ? (
+                <div
+                  style={{
+                    padding: "24px",
+                    textAlign: "center",
+                    color: "#6e5a47",
+                    fontSize: "12px",
+                    border: "1px dashed rgba(255,255,255,0.06)",
+                    borderRadius: "10px",
+                  }}
+                >
+                  Nenhum recebimento registrado até o momento.
+                </div>
+              ) : (
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)", textAlign: "left", color: "#a8947f" }}>
+                        <th style={{ padding: "10px 8px" }}>Pedido</th>
+                        <th style={{ padding: "10px 8px" }}>Mesa / Cliente</th>
+                        <th style={{ padding: "10px 8px" }}>Forma(s) Efetivada(s)</th>
+                        <th style={{ padding: "10px 8px" }}>Operador</th>
+                        <th style={{ padding: "10px 8px" }}>Horário</th>
+                        <th style={{ padding: "10px 8px", textAlign: "right" }}>Valor Recebido</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paidOrders.slice(0, 30).map((order) => {
+                        const paymentsList = (order.payments || []) as PaymentItem[];
+                        return (
+                          <tr
+                            key={order.code}
+                            style={{
+                              borderBottom: "1px solid rgba(255,255,255,0.04)",
+                            }}
+                          >
+                            <td style={{ padding: "12px 8px" }}>
+                              <strong style={{ fontFamily: "Oswald, sans-serif", fontSize: "14px", color: "#fff" }}>
+                                #{order.code}
+                              </strong>
+                            </td>
+                            <td style={{ padding: "12px 8px", color: "var(--cheddar)" }}>
+                              {order.tableName || order.origin}
+                              {order.customerName ? ` • ${order.customerName}` : ""}
+                            </td>
+                            <td style={{ padding: "12px 8px" }}>
+                              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
+                                {paymentsList.length > 0 ? (
+                                  paymentsList.map((p, idx) => {
+                                    const cfg = getPaymentMethodDisplay(p.method, p.cardBrand);
+                                    return (
+                                      <span
+                                        key={idx}
+                                        style={{
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          gap: "4px",
+                                          background: cfg.bg,
+                                          color: cfg.color,
+                                          border: `1px solid ${cfg.border}`,
+                                          borderRadius: "6px",
+                                          padding: "3px 8px",
+                                          fontSize: "11px",
+                                          fontWeight: 700,
+                                        }}
+                                      >
+                                        <span>{cfg.icon}</span>
+                                        <span>{cfg.label}: {formatMoney(p.amountCents)}</span>
+                                        {p.changeCents ? (
+                                          <small style={{ color: "#a8947f" }}>(troco {formatMoney(p.changeCents)})</small>
+                                        ) : null}
+                                      </span>
+                                    );
+                                  })
+                                ) : (
+                                  (() => {
+                                    const cfg = getPaymentMethodDisplay(order.paymentMethod);
+                                    return (
+                                      <span
+                                        style={{
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          gap: "4px",
+                                          background: cfg.bg,
+                                          color: cfg.color,
+                                          border: `1px solid ${cfg.border}`,
+                                          borderRadius: "6px",
+                                          padding: "3px 8px",
+                                          fontSize: "11px",
+                                          fontWeight: 700,
+                                        }}
+                                      >
+                                        <span>{cfg.icon}</span>
+                                        <span>{cfg.label}: {formatMoney(order.paidCents || order.totalCents)}</span>
+                                      </span>
+                                    );
+                                  })()
+                                )}
+                              </div>
+                            </td>
+                            <td style={{ padding: "12px 8px", color: "#a8947f" }}>
+                              {order.operatorName || "Equipe"}
+                            </td>
+                            <td style={{ padding: "12px 8px", color: "#a8947f" }}>
+                              {formatTimeOnly(order.createdAt)}
+                            </td>
+                            <td style={{ padding: "12px 8px", textAlign: "right" }}>
+                              <strong style={{ color: "#86efac", fontSize: "14px" }}>
+                                {formatMoney(order.paidCents || order.totalCents)}
+                              </strong>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
         {/* ═════════════════════════════════════════════════════════════════════
-            TAB 3: RELATÓRIOS
+            TAB 3: RELATÓRIOS & DRE
            ═════════════════════════════════════════════════════════════════════ */}
-        {tab === "reports" && statsQuery.data && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
-              <h2 style={{ fontFamily: "Oswald, sans-serif", fontSize: "24px", color: "#fff", margin: 0, textTransform: "uppercase" }}>
-                Relatório de Vendas & DRE
-              </h2>
-              <div style={{ display: "flex", gap: "6px" }}>
-                {(["day", "week", "month", "year"] as const).map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => setStatsPeriod(p)}
+        {tab === "reports" && statsQuery.data && (() => {
+          const totalStatsRevenue = statsQuery.data.totals.revenue || 1;
+          const rawByPayment = statsQuery.data.byPayment || [];
+
+          const methodsCatalog = [
+            { key: "pix", label: "Pix", icon: "💠", color: "#10b981", bg: "rgba(16, 185, 129, 0.15)", border: "rgba(16, 185, 129, 0.35)" },
+            { key: "credito", label: "Cartão de Crédito", icon: "💳", color: "#f59e0b", bg: "rgba(245, 158, 11, 0.15)", border: "rgba(245, 158, 11, 0.35)" },
+            { key: "debito", label: "Cartão de Débito", icon: "💳", color: "#3b82f6", bg: "rgba(59, 130, 246, 0.15)", border: "rgba(59, 130, 246, 0.35)" },
+            { key: "dinheiro", label: "Dinheiro", icon: "💵", color: "#22c55e", bg: "rgba(34, 197, 94, 0.15)", border: "rgba(34, 197, 94, 0.35)" },
+            { key: "vale_refeicao", label: "Vale Refeição", icon: "🎟️", color: "#8b5cf6", bg: "rgba(139, 92, 246, 0.15)", border: "rgba(139, 92, 246, 0.35)" },
+          ];
+
+          const reportPaymentMethods = methodsCatalog.map((cat) => {
+            const found = rawByPayment.find((bp) => {
+              const norm = (bp.paymentMethod || "").toLowerCase();
+              if (cat.key === "pix") return norm.includes("pix");
+              if (cat.key === "credito") return norm.includes("crédito") || norm.includes("credito");
+              if (cat.key === "debito") return norm.includes("débito") || norm.includes("debito");
+              if (cat.key === "dinheiro") return norm.includes("dinheiro");
+              if (cat.key === "vale_refeicao") return norm.includes("vale") || norm.includes("refei") || norm.includes("vr");
+              return false;
+            });
+            const revenue = found ? found.revenue : 0;
+            const count = found ? found.count : 0;
+            const avgTicket = count > 0 ? Math.round(revenue / count) : 0;
+            const percent = totalStatsRevenue > 0 ? (revenue / totalStatsRevenue) * 100 : 0;
+            return {
+              ...cat,
+              revenue,
+              count,
+              avgTicket,
+              percent,
+            };
+          });
+
+          const activePaymentMethods = reportPaymentMethods.filter((p) => p.revenue > 0 || p.count > 0);
+
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
+                <h2 style={{ fontFamily: "Oswald, sans-serif", fontSize: "24px", color: "#fff", margin: 0, textTransform: "uppercase" }}>
+                  Relatório de Vendas & DRE
+                </h2>
+                <div style={{ display: "flex", gap: "6px" }}>
+                  {(["day", "week", "month", "year"] as const).map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setStatsPeriod(p)}
+                      style={{
+                        background: statsPeriod === p ? "var(--cheddar)" : "rgba(255, 255, 255, 0.08)",
+                        color: statsPeriod === p ? "#120704" : "#d6be9f",
+                        border: 0,
+                        borderRadius: "6px",
+                        padding: "6px 12px",
+                        fontSize: "11px",
+                        fontWeight: 750,
+                        cursor: "pointer",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      {p === "day" ? "Hoje" : p === "week" ? "Semana" : p === "month" ? "Mês" : "Ano"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Totals KPI */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "14px" }}>
+                <div style={{ background: "rgba(32, 17, 10, 0.9)", border: "1px solid rgba(255, 196, 0, 0.25)", borderRadius: "14px", padding: "16px 20px" }}>
+                  <span style={{ fontSize: "11px", color: "#a8947f", textTransform: "uppercase", fontWeight: 750 }}>Total de Pedidos</span>
+                  <strong style={{ display: "block", fontFamily: "Oswald, sans-serif", fontSize: "32px", color: "#fff", marginTop: "4px" }}>
+                    {statsQuery.data.totals.orders}
+                  </strong>
+                </div>
+                <div style={{ background: "rgba(32, 17, 10, 0.9)", border: "1px solid rgba(255, 196, 0, 0.25)", borderRadius: "14px", padding: "16px 20px" }}>
+                  <span style={{ fontSize: "11px", color: "#a8947f", textTransform: "uppercase", fontWeight: 750 }}>Receita Total</span>
+                  <strong style={{ display: "block", fontFamily: "Oswald, sans-serif", fontSize: "32px", color: "#86efac", marginTop: "4px" }}>
+                    {formatMoney(statsQuery.data.totals.revenue)}
+                  </strong>
+                </div>
+                <div style={{ background: "rgba(32, 17, 10, 0.9)", border: "1px solid rgba(255, 196, 0, 0.25)", borderRadius: "14px", padding: "16px 20px" }}>
+                  <span style={{ fontSize: "11px", color: "#a8947f", textTransform: "uppercase", fontWeight: 750 }}>Ticket Médio</span>
+                  <strong style={{ display: "block", fontFamily: "Oswald, sans-serif", fontSize: "32px", color: "var(--cheddar)", marginTop: "4px" }}>
+                    {formatMoney(statsQuery.data.totals.avgTicket)}
+                  </strong>
+                </div>
+              </div>
+
+              {/* Divisão por Formas de Pagamento (Gráfico de Rosca + Cards + Tabela Detalhada) */}
+              <div
+                style={{
+                  background: "linear-gradient(160deg, rgba(32, 17, 10, 0.95), rgba(20, 10, 6, 0.98))",
+                  border: "1px solid rgba(255, 196, 0, 0.22)",
+                  borderRadius: "16px",
+                  padding: "22px 24px",
+                  boxShadow: "0 8px 30px rgba(0,0,0,0.35)",
+                }}
+              >
+                <div style={{ marginBottom: "18px" }}>
+                  <h3
                     style={{
-                      background: statsPeriod === p ? "var(--cheddar)" : "rgba(255, 255, 255, 0.08)",
-                      color: statsPeriod === p ? "#120704" : "#d6be9f",
-                      border: 0,
-                      borderRadius: "6px",
-                      padding: "6px 12px",
-                      fontSize: "11px",
-                      fontWeight: 750,
-                      cursor: "pointer",
+                      fontFamily: "Oswald, sans-serif",
+                      fontSize: "20px",
+                      color: "#fff",
                       textTransform: "uppercase",
+                      margin: 0,
+                      letterSpacing: "0.5px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
                     }}
                   >
-                    {p === "day" ? "Hoje" : p === "week" ? "Semana" : p === "month" ? "Mês" : "Ano"}
-                  </button>
-                ))}
-              </div>
-            </div>
+                    <CircleDollarSign size={20} style={{ color: "var(--cheddar)" }} />
+                    Divisão de Vendas por Forma de Pagamento
+                  </h3>
+                  <p style={{ margin: "4px 0 0", fontSize: "12px", color: "#a8947f" }}>
+                    Detalhamento de faturamento, volume e participação de cada modalidade efetivada.
+                  </p>
+                </div>
 
-            {/* Totals KPI */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "14px" }}>
-              <div style={{ background: "rgba(32, 17, 10, 0.9)", border: "1px solid rgba(255, 196, 0, 0.25)", borderRadius: "14px", padding: "16px 20px" }}>
-                <span style={{ fontSize: "11px", color: "#a8947f", textTransform: "uppercase", fontWeight: 750 }}>Total de Pedidos</span>
-                <strong style={{ display: "block", fontFamily: "Oswald, sans-serif", fontSize: "32px", color: "#fff", marginTop: "4px" }}>
-                  {statsQuery.data.totals.orders}
-                </strong>
-              </div>
-              <div style={{ background: "rgba(32, 17, 10, 0.9)", border: "1px solid rgba(255, 196, 0, 0.25)", borderRadius: "14px", padding: "16px 20px" }}>
-                <span style={{ fontSize: "11px", color: "#a8947f", textTransform: "uppercase", fontWeight: 750 }}>Receita Total</span>
-                <strong style={{ display: "block", fontFamily: "Oswald, sans-serif", fontSize: "32px", color: "#86efac", marginTop: "4px" }}>
-                  {formatMoney(statsQuery.data.totals.revenue)}
-                </strong>
-              </div>
-              <div style={{ background: "rgba(32, 17, 10, 0.9)", border: "1px solid rgba(255, 196, 0, 0.25)", borderRadius: "14px", padding: "16px 20px" }}>
-                <span style={{ fontSize: "11px", color: "#a8947f", textTransform: "uppercase", fontWeight: 750 }}>Ticket Médio</span>
-                <strong style={{ display: "block", fontFamily: "Oswald, sans-serif", fontSize: "32px", color: "var(--cheddar)", marginTop: "4px" }}>
-                  {formatMoney(statsQuery.data.totals.avgTicket)}
-                </strong>
-              </div>
-            </div>
-
-            {/* Top Items Table */}
-            <div style={{ background: "rgba(32, 17, 10, 0.95)", border: "1px solid rgba(255, 196, 0, 0.22)", borderRadius: "16px", padding: "20px" }}>
-              <h3 style={{ fontFamily: "Oswald, sans-serif", fontSize: "18px", color: "#fff", textTransform: "uppercase", margin: "0 0 14px" }}>
-                Mais Vendidos na Chapa
-              </h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                {statsQuery.data.topItems.map((item, idx) => (
-                  <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px dashed rgba(255,255,255,0.08)" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                      <span style={{ width: "22px", height: "22px", borderRadius: "50%", background: "rgba(255,196,0,0.2)", color: "#ffd44c", display: "grid", placeItems: "center", fontSize: "11px", fontWeight: 800 }}>
-                        {idx + 1}
+                {/* Cards rápidos por modalidade */}
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+                    gap: "12px",
+                    marginBottom: "20px",
+                  }}
+                >
+                  {reportPaymentMethods.map((pm) => (
+                    <div
+                      key={pm.key}
+                      style={{
+                        background: "rgba(20, 10, 6, 0.8)",
+                        border: `1px solid ${pm.border}`,
+                        borderRadius: "10px",
+                        padding: "12px 14px",
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: "11px", color: pm.color, fontWeight: 800 }}>
+                          {pm.icon} {pm.label}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: "10px",
+                            fontWeight: 800,
+                            background: pm.bg,
+                            color: pm.color,
+                            padding: "2px 6px",
+                            borderRadius: "4px",
+                          }}
+                        >
+                          {pm.percent.toFixed(1)}%
+                        </span>
+                      </div>
+                      <strong
+                        style={{
+                          display: "block",
+                          fontFamily: "Oswald, sans-serif",
+                          fontSize: "20px",
+                          color: "#fff",
+                          marginTop: "6px",
+                        }}
+                      >
+                        {formatMoney(pm.revenue)}
+                      </strong>
+                      <span style={{ fontSize: "10px", color: "#a8947f" }}>
+                        {pm.count} transação(ões) • Méd. {formatMoney(pm.avgTicket)}
                       </span>
-                      <strong style={{ color: "#fff", fontSize: "13px" }}>{item.name}</strong>
                     </div>
-                    <div style={{ display: "flex", gap: "16px", alignItems: "center", fontSize: "12px" }}>
-                      <span style={{ color: "#d6be9f" }}>{item.qty} un</span>
-                      <strong style={{ color: "#ffd44c" }}>{formatMoney(item.revenue)}</strong>
-                    </div>
+                  ))}
+                </div>
+
+                {/* Grid 2 colunas: Gráfico Rosca + Tabela Comparativa */}
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+                    gap: "20px",
+                    alignItems: "center",
+                  }}
+                >
+                  {/* Gráfico Rosca */}
+                  <div
+                    style={{
+                      background: "rgba(0, 0, 0, 0.3)",
+                      border: "1px solid rgba(255, 255, 255, 0.06)",
+                      borderRadius: "12px",
+                      padding: "16px",
+                      height: "280px",
+                    }}
+                  >
+                    {activePaymentMethods.length === 0 ? (
+                      <div style={{ height: "100%", display: "grid", placeItems: "center", color: "#6e5a47", fontSize: "12px" }}>
+                        Sem pagamentos no período
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={activePaymentMethods.map((p) => ({
+                              name: p.label,
+                              value: p.revenue / 100,
+                            }))}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={55}
+                            outerRadius={85}
+                            paddingAngle={4}
+                            dataKey="value"
+                          >
+                            {activePaymentMethods.map((p, idx) => (
+                              <Cell key={`cell-${idx}`} fill={p.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            formatter={(val: number) => [
+                              (val).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }),
+                              "Receita",
+                            ]}
+                            contentStyle={{
+                              background: "#1f100a",
+                              border: "1px solid rgba(255,196,0,0.3)",
+                              borderRadius: "8px",
+                              fontSize: "12px",
+                              color: "#fff",
+                            }}
+                          />
+                          <Legend
+                            verticalAlign="bottom"
+                            wrapperStyle={{ fontSize: "11px", paddingTop: "10px", color: "#d6be9f" }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    )}
                   </div>
-                ))}
+
+                  {/* Tabela Discriminada */}
+                  <div
+                    style={{
+                      background: "rgba(0, 0, 0, 0.3)",
+                      border: "1px solid rgba(255, 255, 255, 0.06)",
+                      borderRadius: "12px",
+                      padding: "16px",
+                      overflowX: "auto",
+                    }}
+                  >
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+                      <thead>
+                        <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)", textAlign: "left", color: "#a8947f" }}>
+                          <th style={{ padding: "8px 6px" }}>Forma</th>
+                          <th style={{ padding: "8px 6px", textAlign: "center" }}>Vendas</th>
+                          <th style={{ padding: "8px 6px", textAlign: "right" }}>Total (R$)</th>
+                          <th style={{ padding: "8px 6px", textAlign: "right" }}>Ticket Médio</th>
+                          <th style={{ padding: "8px 6px", textAlign: "right" }}>Part.</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {reportPaymentMethods.map((pm) => (
+                          <tr key={pm.key} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                            <td style={{ padding: "10px 6px", fontWeight: 700, color: pm.color }}>
+                              {pm.icon} {pm.label}
+                            </td>
+                            <td style={{ padding: "10px 6px", textAlign: "center", color: "#d6be9f" }}>
+                              {pm.count}
+                            </td>
+                            <td style={{ padding: "10px 6px", textAlign: "right", color: "#fff", fontWeight: 700 }}>
+                              {formatMoney(pm.revenue)}
+                            </td>
+                            <td style={{ padding: "10px 6px", textAlign: "right", color: "#a8947f" }}>
+                              {formatMoney(pm.avgTicket)}
+                            </td>
+                            <td style={{ padding: "10px 6px", textAlign: "right" }}>
+                              <span
+                                style={{
+                                  background: pm.bg,
+                                  color: pm.color,
+                                  border: `1px solid ${pm.border}`,
+                                  borderRadius: "4px",
+                                  padding: "2px 6px",
+                                  fontSize: "10px",
+                                  fontWeight: 800,
+                                }}
+                              >
+                                {pm.percent.toFixed(1)}%
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              {/* Top Items Table */}
+              <div style={{ background: "rgba(32, 17, 10, 0.95)", border: "1px solid rgba(255, 196, 0, 0.22)", borderRadius: "16px", padding: "20px" }}>
+                <h3 style={{ fontFamily: "Oswald, sans-serif", fontSize: "18px", color: "#fff", textTransform: "uppercase", margin: "0 0 14px" }}>
+                  Mais Vendidos na Chapa
+                </h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  {statsQuery.data.topItems.map((item, idx) => (
+                    <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px dashed rgba(255,255,255,0.08)" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                        <span style={{ width: "22px", height: "22px", borderRadius: "50%", background: "rgba(255,196,0,0.2)", color: "#ffd44c", display: "grid", placeItems: "center", fontSize: "11px", fontWeight: 800 }}>
+                          {idx + 1}
+                        </span>
+                        <strong style={{ color: "#fff", fontSize: "13px" }}>{item.name}</strong>
+                      </div>
+                      <div style={{ display: "flex", gap: "16px", alignItems: "center", fontSize: "12px" }}>
+                        <span style={{ color: "#d6be9f" }}>{item.qty} un</span>
+                        <strong style={{ color: "#ffd44c" }}>{formatMoney(item.revenue)}</strong>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ═════════════════════════════════════════════════════════════════════
             TAB 4: EQUIPE & ACESSOS
