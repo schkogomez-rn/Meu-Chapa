@@ -2338,15 +2338,18 @@ function Operations({ onBack }: { onBack: () => void }) {
   const orders = (ordersQuery.data ?? []) as unknown as StoredOrder[];
 
   const handleAdvanceStatus = (order: StoredOrder, targetStatus: OrderStatus) => {
-    // Trava de entrega: Bloquear entrega de balcão sem pagamento
+    // Indicação e registro de pagamento ao entregar o pedido ao cliente
     if (
       targetStatus === "completed" &&
-      order.serviceMode === "counter" &&
       order.financialStatus !== "paid"
     ) {
-      alert("Atenção: Pedido de balcão precisa estar pago antes de ser entregue. Abrindo recebimento...");
-      setReceivingOrder(order);
-      return;
+      const confirmDeliver = window.confirm(
+        `O pedido #${order.code} ainda não foi marcado como pago.\n\nDeseja registrar o pagamento na entrega agora? (Clique em 'OK' para abrir o recebimento ou 'Cancelar' para apenas concluir a entrega)`
+      );
+      if (confirmDeliver) {
+        setReceivingOrder(order);
+        return;
+      }
     }
 
     statusMutation.mutate({ code: order.code, status: targetStatus });
@@ -2506,44 +2509,49 @@ function Operations({ onBack }: { onBack: () => void }) {
                           ))}
                         </div>
                         {order.notes && <div className="ticket-note">Obs.: {order.notes}</div>}
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            margin: "8px 0 4px",
-                          }}
-                        >
-                          <span
+                        {/* Indicação de pagamento: apenas no pedido pronto ou entregue */}
+                        {(col.status === "ready" || (order.status as string) === "completed") && (
+                          <div
                             style={{
-                              fontSize: "10px",
-                              color: "var(--muted)",
-                              padding: "2px 6px",
-                              background: "var(--creme)",
-                              borderRadius: "999px",
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              margin: "8px 0 4px",
+                              padding: "4px 8px",
+                              background: finStatus === "paid" ? "rgba(34, 197, 94, 0.12)" : "rgba(245, 158, 11, 0.12)",
+                              border: `1px solid ${finStatus === "paid" ? "rgba(34, 197, 94, 0.3)" : "rgba(245, 158, 11, 0.3)"}`,
+                              borderRadius: "6px",
                             }}
                           >
-                            💳 {order.paymentMethod}
-                          </span>
-                          <span
-                            style={{
-                              fontSize: 10,
-                              fontWeight: 800,
-                              padding: "2px 6px",
-                              borderRadius: 999,
-                              background: fcfg.bg,
-                              color: fcfg.color,
-                              border: `1px solid ${fcfg.border}`,
-                            }}
-                          >
-                            {FINANCIAL_STATUS_LABELS[finStatus] || finStatus}
-                          </span>
-                        </div>
+                            <span
+                              style={{
+                                fontSize: "10px",
+                                fontWeight: 700,
+                                color: finStatus === "paid" ? "#16a34a" : "#b45309",
+                              }}
+                            >
+                              💳 {finStatus === "paid" ? `Pago: ${order.paymentMethod}` : "Pagamento na entrega: Pendente"}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: 10,
+                                fontWeight: 800,
+                                padding: "2px 6px",
+                                borderRadius: 999,
+                                background: fcfg.bg,
+                                color: fcfg.color,
+                                border: `1px solid ${fcfg.border}`,
+                              }}
+                            >
+                              {FINANCIAL_STATUS_LABELS[finStatus] || finStatus}
+                            </span>
+                          </div>
+                        )}
 
                         <div className="ticket-bottom">
                           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                             <strong>{money(order.totalCents)}</strong>
-                            {finStatus !== "paid" && (
+                            {(col.status === "ready" || (order.status as string) === "completed") && finStatus !== "paid" && (
                               <button
                                 onClick={() => setReceivingOrder(order)}
                                 style={{
@@ -2640,8 +2648,6 @@ export default function Home() {
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const [tableName, setTableName] = useState("Mesa 01");
   const [customerName, setCustomerName] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("Na entrega / fechamento");
-  const [cardBrand, setCardBrand] = useState<CardBrand | "">("");
   const [notes, setNotes] = useState("");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [confirmationCode, setConfirmationCode] = useState<string | null>(null);
@@ -2695,7 +2701,7 @@ export default function Home() {
           )
     );
   const subtotal = cart.reduce((s, i) => s + i.priceCents * i.quantity, 0);
-  const { totalCents: total, surchargeCents, isCreditCard } = calcTotal(subtotal, paymentMethod);
+  const total = subtotal;
 
   const submitOrder = () => {
     let modeToUse: ServiceMode = "customer";
@@ -2727,7 +2733,7 @@ export default function Home() {
         serviceMode: modeToUse,
         tableName: finalTable || undefined,
         customerName: finalCustName || undefined,
-        paymentMethod,
+        paymentMethod: "Na entrega / fechamento",
         notes: notes || undefined,
         status: orderStatus,
         items: cart.map((i) => ({
@@ -3083,14 +3089,8 @@ export default function Home() {
                   <strong>{money(item.priceCents * item.quantity)}</strong>
                 </div>
               ))}
-              {isCreditCard && surchargeCents > 0 && (
-                <div style={{ borderTop: "1px dashed #fde047", marginTop: 4 }}>
-                  <span style={{ color: "#92400e", fontSize: 11 }}>💳 Acréscimo crédito (5%)</span>
-                  <strong style={{ color: "#92400e" }}>+{money(surchargeCents)}</strong>
-                </div>
-              )}
               <div className="checkout-total">
-                <span>Total{isCreditCard ? " c/ acréscimo" : ""}</span>
+                <span>Total</span>
                 <strong>{money(total)}</strong>
               </div>
             </div>
@@ -3484,69 +3484,29 @@ export default function Home() {
               </label>
             </div>
 
-            {/* Payment method */}
-            <label className="field-label">
-              💳 Intenção de Pagamento
-              <select value={paymentMethod} onChange={(e) => {
-                setPaymentMethod(e.target.value);
-                if (!e.target.value.includes("Crédito")) setCardBrand("");
-              }}>
-                <option value="Na entrega / fechamento">Na entrega / fechamento</option>
-                <option value="Pix">Pix</option>
-                <option value="Cartão Crédito">Cartão Crédito (+5%)</option>
-                <option value="Cartão Débito">Cartão Débito</option>
-                <option value="Dinheiro">Dinheiro</option>
-                <option value="Vale Refeição">Vale Refeição</option>
-              </select>
-            </label>
-
-            {/* Card brand selector — only for credit card */}
-            {isCreditCard && (
-              <div style={{ marginBottom: 10 }}>
-                <span style={{
-                  display: "block",
-                  color: "var(--muted)",
-                  fontSize: 10,
-                  fontWeight: 800,
-                  textTransform: "uppercase",
-                  letterSpacing: ".6px",
-                  marginBottom: 6,
-                }}>Bandeira do Cartão</span>
-                <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
-                  {ACCEPTED_CARD_BRANDS.map((brand) => (
-                    <button
-                      key={brand}
-                      type="button"
-                      onClick={() => setCardBrand(brand as CardBrand)}
-                      style={{
-                        padding: "6px 14px",
-                        borderRadius: 999,
-                        border: cardBrand === brand ? "2px solid var(--brasa)" : "1px solid var(--line)",
-                        background: cardBrand === brand ? "var(--chapa-900)" : "#fffaf0",
-                        color: cardBrand === brand ? "var(--cheddar)" : "var(--muted)",
-                        fontSize: 12,
-                        fontWeight: 800,
-                        cursor: "pointer",
-                      }}
-                    >
-                      {brand}
-                    </button>
-                  ))}
-                </div>
-                <div style={{
-                  marginTop: 8,
-                  padding: "6px 10px",
-                  background: "#fef9c3",
-                  border: "1px solid #fde047",
-                  borderRadius: 7,
-                  fontSize: 11,
-                  color: "#92400e",
-                  fontWeight: 600,
-                }}>
-                  ⚠️ Acréscimo de 5% para pagamento no crédito: +{money(surchargeCents)}
-                </div>
+            {/* Indicação informativa: pagamento na entrega / conferência */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                padding: "10px 14px",
+                background: "rgba(255, 196, 0, 0.08)",
+                border: "1px dashed rgba(255, 196, 0, 0.35)",
+                borderRadius: "10px",
+                margin: "10px 0 14px",
+              }}
+            >
+              <span style={{ fontSize: "20px" }}>💳</span>
+              <div>
+                <strong style={{ display: "block", fontSize: "12px", color: "var(--chapa-900)" }}>
+                  Pagamento na Entrega
+                </strong>
+                <span style={{ fontSize: "11px", color: "var(--muted)", lineHeight: 1.3 }}>
+                  A forma de pagamento (Pix, Cartão ou Dinheiro) será definida quando o pedido estiver pronto e for entregue a você.
+                </span>
               </div>
-            )}
+            </div>
 
             <label className="field-label">
               Observação da comanda

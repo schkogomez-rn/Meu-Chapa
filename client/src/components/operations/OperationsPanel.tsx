@@ -174,10 +174,14 @@ export function OperationsPanel({ onBack }: { onBack: () => void }) {
   ];
 
   const handleAdvanceStatus = (order: StoredOrder, targetStatus: StoredOrder["status"]) => {
-    if (targetStatus === "completed" && order.serviceMode === "counter" && order.financialStatus !== "paid") {
-      alert("Atenção: Pedido de balcão precisa estar quitado antes de ser entregue.");
-      setReceivingOrder(order);
-      return;
+    if (targetStatus === "completed" && order.financialStatus !== "paid") {
+      const confirmDeliver = window.confirm(
+        `O pedido #${order.code} ainda não foi marcado como pago.\n\nDeseja registrar o pagamento na entrega agora? (Clique em 'OK' para abrir o recebimento ou 'Cancelar' para apenas concluir a entrega)`
+      );
+      if (confirmDeliver) {
+        setReceivingOrder(order);
+        return;
+      }
     }
     statusMutation.mutate({ code: order.code, status: targetStatus });
   };
@@ -384,6 +388,61 @@ export function OperationsPanel({ onBack }: { onBack: () => void }) {
                               {order.notes && (
                                 <div style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "6px", padding: "6px 8px", fontSize: "11px", color: "#d6be9f" }}>
                                   Nota: {order.notes}
+                                </div>
+                              )}
+
+                              {/* Indicação de pagamento: apenas no pedido pronto ou entregue */}
+                              {(order.status === "ready" || (order.status as string) === "completed") && (
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    background:
+                                      order.financialStatus === "paid"
+                                        ? "rgba(34, 197, 94, 0.15)"
+                                        : "rgba(245, 158, 11, 0.15)",
+                                    border: `1px solid ${
+                                      order.financialStatus === "paid"
+                                        ? "rgba(34, 197, 94, 0.35)"
+                                        : "rgba(245, 158, 11, 0.35)"
+                                    }`,
+                                    borderRadius: "8px",
+                                    padding: "6px 10px",
+                                    fontSize: "11px",
+                                  }}
+                                >
+                                  <span
+                                    style={{
+                                      color: order.financialStatus === "paid" ? "#86efac" : "#fef08a",
+                                      fontWeight: 750,
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: "5px",
+                                    }}
+                                  >
+                                    💳 {order.financialStatus === "paid"
+                                      ? `Pago: ${order.paymentMethod}`
+                                      : "Pagamento na entrega: Pendente"}
+                                  </span>
+                                  {order.financialStatus !== "paid" && isCashier && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setReceivingOrder(order)}
+                                      style={{
+                                        background: "#16a34a",
+                                        color: "#fff",
+                                        border: 0,
+                                        borderRadius: "6px",
+                                        padding: "3px 8px",
+                                        fontSize: "10px",
+                                        fontWeight: 800,
+                                        cursor: "pointer",
+                                      }}
+                                    >
+                                      Receber / Baixa
+                                    </button>
+                                  )}
                                 </div>
                               )}
 
