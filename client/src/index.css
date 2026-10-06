@@ -3,30 +3,32 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  /* ── Light Mode (Padrão Diurno) ───────────────────────────── */
   --chapa-950: #100806;
   --chapa-900: #1a0d08;
   --chapa-800: #2a160c;
   --chapa-700: #43220f;
-  --cheddar: #ffc400;
-  --brasa: #f07b17;
+  --cheddar: #d97706;
+  --cheddar-bright: #ffc400;
+  --brasa: #ea580c;
   --creme: #fff5df;
   --papel: #f4ead8;
-  --ink: #25150d;
-  --muted: #765c45;
-  --line: #e3d3b9;
-  --green: #5c823b;
+  --ink: #1a0d08;
+  --muted: #5e4632;
+  --line: #e2d2ba;
+  --green: #2e7d32;
   --shadow: 0 16px 40px rgba(53, 28, 11, .10);
   --radius: .75rem;
   --background: #f7f0e6;
-  --foreground: var(--ink);
+  --foreground: #1a0d08;
   --card: #fffdf9;
-  --card-foreground: var(--ink);
+  --card-foreground: #1a0d08;
   --popover: #fffdf9;
-  --popover-foreground: var(--ink);
-  --primary: var(--cheddar);
-  --primary-foreground: var(--chapa-950);
+  --popover-foreground: #1a0d08;
+  --primary: #d97706;
+  --primary-foreground: #ffffff;
   --secondary: var(--creme);
-  --secondary-foreground: var(--ink);
+  --secondary-foreground: #1a0d08;
   --muted-foreground: var(--muted);
   --accent: var(--brasa);
   --accent-foreground: white;
@@ -34,6 +36,43 @@
   --destructive-foreground: white;
   --border: var(--line);
   --input: var(--line);
+  --ring: var(--brasa);
+}
+
+.dark, html.dark {
+  /* ── Dark Mode (Modo Noturno / Brasa Imersivo) ─────────────── */
+  --chapa-950: #0a0403;
+  --chapa-900: #160a05;
+  --chapa-800: #241109;
+  --chapa-700: #3a1a0e;
+  --cheddar: #ffc400;
+  --cheddar-bright: #ffc400;
+  --brasa: #f07b17;
+  --creme: #241209;
+  --papel: #160a05;
+  --ink: #fff8eb;
+  --muted: #c9b49b;
+  --line: rgba(255, 196, 0, 0.20);
+  --green: #4ade80;
+  --shadow: 0 16px 40px rgba(0, 0, 0, .55);
+  --radius: .75rem;
+  --background: #0d0604;
+  --foreground: #fff8eb;
+  --card: #1c0e08;
+  --card-foreground: #fff8eb;
+  --popover: #1c0e08;
+  --popover-foreground: #fff8eb;
+  --primary: var(--cheddar);
+  --primary-foreground: #100806;
+  --secondary: #28140a;
+  --secondary-foreground: #fff8eb;
+  --muted-foreground: var(--muted);
+  --accent: var(--brasa);
+  --accent-foreground: white;
+  --destructive: #ef4444;
+  --destructive-foreground: white;
+  --border: rgba(255, 196, 0, 0.22);
+  --input: rgba(255, 196, 0, 0.25);
   --ring: var(--brasa);
 }
 
@@ -197,8 +236,61 @@ a { color: inherit; text-decoration: none; }
 .product-card p { min-height: 55px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .product-card-footer { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 16px; }
 .product-card-footer > strong { font-family: Oswald, sans-serif; color: var(--chapa-800); font-size: 22px; }
-.add-button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--chapa-900); background: var(--chapa-900); color: var(--cheddar); border-radius: 7px; padding: 8px 10px; font-size: 11px; font-weight: 800; flex-shrink: 0; }
-.add-button:hover { background: var(--brasa); border-color: var(--brasa); color: #fff; }
+.add-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid #d97706;
+  background: linear-gradient(135deg, #ffc400, #f07b17);
+  color: #120704 !important;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.3px;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: all 0.16s ease;
+  box-shadow: 0 3px 8px rgba(240, 123, 23, 0.28);
+}
+.add-button svg {
+  color: #120704 !important;
+  stroke-width: 3;
+}
+.add-button:hover {
+  background: linear-gradient(135deg, #ffd44c, #ff8c26);
+  border-color: #f07b17;
+  color: #000000 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 5px 14px rgba(240, 123, 23, 0.45);
+}
+.add-button:active {
+  transform: scale(0.97);
+}
+
+/* Forçar contraste máximo em qualquer tema */
+html.dark .add-button,
+html:not(.dark) .add-button {
+  background: linear-gradient(135deg, #ffc400, #f07b17) !important;
+  color: #120704 !important;
+  border-color: #d97706 !important;
+  font-weight: 900 !important;
+}
+html.dark .add-button svg,
+html:not(.dark) .add-button svg {
+  color: #120704 !important;
+  stroke-width: 3 !important;
+}
+html.dark .add-button:hover,
+html:not(.dark) .add-button:hover {
+  background: linear-gradient(135deg, #ffd44c, #ff8c26) !important;
+  color: #000000 !important;
+}
+html.dark .add-button:hover svg,
+html:not(.dark) .add-button:hover svg {
+  color: #000000 !important;
+}
 
 /* ── Modal item price banner (replaces food-art) ─────────────── */
 .modal-item-banner {
@@ -745,6 +837,264 @@ a { color: inherit; text-decoration: none; }
 }
 
 
+
+/* ═════════════════════════════════════════════════════════════════════
+   THEME ADAPTATION: DARK MODE & LIGHT MODE CONTRAST & LEGIBILITY
+   ═════════════════════════════════════════════════════════════════════ */
+
+/* ── Light Mode Specific Styles ─────────────────────────────────────── */
+html:not(.dark) {
+  color-scheme: light;
+}
+html:not(.dark) body {
+  background-color: #f7f0e6;
+  color: #1a0d08;
+}
+html:not(.dark) .product-card {
+  background: #fffdf9;
+  border: 1px solid #e3d3b9;
+  border-left: 3px solid #ea580c;
+  box-shadow: 0 4px 14px rgba(45, 23, 8, 0.05);
+}
+html:not(.dark) .pc-name {
+  color: #1a0d08;
+}
+html:not(.dark) .pc-desc {
+  color: #5e4632;
+}
+html:not(.dark) .pc-price {
+  color: #1a0d08;
+}
+html:not(.dark) .category-strip {
+  background: #f7f0e6;
+}
+html:not(.dark) .section-intro h2 {
+  color: #1a0d08;
+}
+html:not(.dark) .category-scroll button {
+  background: #fffaf0;
+  border-color: #e3d3b9;
+  color: #5e4632;
+}
+html:not(.dark) .category-scroll button.active,
+html:not(.dark) .category-scroll button:hover {
+  background: #1a0d08;
+  color: #ffd44c;
+  border-color: #1a0d08;
+}
+html:not(.dark) .cart-panel {
+  background: #fffdf9;
+  border-color: #e3d3b9;
+  box-shadow: 0 10px 30px rgba(53, 28, 11, 0.08);
+}
+html:not(.dark) .cart-panel h2 {
+  color: #1a0d08;
+}
+html:not(.dark) .cart-total {
+  color: #1a0d08;
+}
+html:not(.dark) .modal-card {
+  background: #fffdf9;
+  color: #1a0d08;
+}
+html:not(.dark) .modal-head h2 {
+  color: #1a0d08;
+}
+html:not(.dark) .modal-description {
+  color: #5e4632;
+}
+html:not(.dark) .field-label {
+  color: #3f200c;
+}
+html:not(.dark) .field-label input,
+html:not(.dark) .field-label select,
+html:not(.dark) .field-label textarea {
+  background: #fffaf0;
+  border-color: #e3d3b9;
+  color: #1a0d08;
+}
+html:not(.dark) .confirmation-card {
+  background: #fffdf9;
+  border-color: #e3d3b9;
+  color: #1a0d08;
+}
+html:not(.dark) .confirmation-card h1 {
+  color: #1a0d08;
+}
+html:not(.dark) .confirmation-card p {
+  color: #5e4632;
+}
+
+/* ── Dark Mode Specific Styles ──────────────────────────────────────── */
+html.dark {
+  color-scheme: dark;
+}
+html.dark body {
+  background-color: #0d0604;
+  color: #fff8eb;
+}
+html.dark .product-card {
+  background: linear-gradient(160deg, #1f1009, #150905);
+  border: 1px solid rgba(255, 196, 0, 0.22);
+  border-left: 3px solid var(--brasa);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+}
+html.dark .product-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 196, 0, 0.5);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.65);
+}
+html.dark .pc-name {
+  color: #ffffff;
+}
+html.dark .pc-desc {
+  color: #c9b49b;
+}
+html.dark .pc-price {
+  color: #ffd44c;
+}
+html.dark .pc-footer {
+  border-top-color: rgba(255, 255, 255, 0.08);
+}
+html.dark .category-strip {
+  background: #0d0604;
+}
+html.dark .section-intro h2 {
+  color: #ffffff;
+}
+html.dark .category-scroll button {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #d6be9f;
+}
+html.dark .category-scroll button.active,
+html.dark .category-scroll button:hover {
+  background: var(--cheddar);
+  border-color: var(--cheddar);
+  color: #120704;
+}
+html.dark .cart-panel {
+  background: linear-gradient(160deg, #201008, #140904);
+  border: 1px solid rgba(255, 196, 0, 0.25);
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.55);
+}
+html.dark .cart-panel h2 {
+  color: #ffffff;
+}
+html.dark .cart-total {
+  color: #ffffff;
+}
+html.dark .cart-count {
+  background: rgba(255, 196, 0, 0.18);
+  color: #ffd44c;
+}
+html.dark .cart-empty svg {
+  color: var(--brasa);
+}
+html.dark .cart-empty strong {
+  color: #ffffff;
+}
+html.dark .cart-empty span {
+  color: #a8947f;
+}
+html.dark .cart-line {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+html.dark .cart-line-info strong {
+  color: #ffffff;
+}
+html.dark .cart-line-info small {
+  color: #a8947f;
+}
+html.dark .cart-line-actions > strong {
+  color: #ffd44c;
+}
+html.dark .quantity-control button {
+  background: rgba(255, 196, 0, 0.12);
+  border-color: rgba(255, 196, 0, 0.28);
+  color: #ffd44c;
+}
+html.dark .quantity-control strong {
+  color: #ffffff;
+}
+html.dark .modal-card {
+  background: linear-gradient(160deg, #221108, #150904);
+  color: #fff8eb;
+  border: 1px solid rgba(255, 196, 0, 0.3);
+  box-shadow: 0 24px 90px rgba(0, 0, 0, 0.7);
+}
+html.dark .modal-head h2 {
+  color: #ffffff;
+}
+html.dark .modal-description {
+  color: #c9b49b;
+}
+html.dark .modal-item-banner {
+  background: rgba(255, 196, 0, 0.12);
+}
+html.dark .modal-item-price {
+  color: #ffd44c;
+}
+html.dark .icon-button {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #ffd44c;
+}
+html.dark .field-label {
+  color: #d6be9f;
+}
+html.dark .field-label input,
+html.dark .field-label select,
+html.dark .field-label textarea {
+  background: rgba(0, 0, 0, 0.4);
+  border-color: rgba(255, 196, 0, 0.25);
+  color: #ffffff;
+}
+html.dark .field-label input::placeholder,
+html.dark .field-label textarea::placeholder {
+  color: #8c765f;
+}
+html.dark .checkout-summary {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+html.dark .checkout-summary > div {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+  color: #e6d5c3;
+}
+html.dark .checkout-total {
+  color: #ffffff !important;
+}
+html.dark .mode-selector button {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #d6be9f;
+}
+html.dark .mode-selector button.active {
+  background: var(--cheddar);
+  border-color: var(--cheddar);
+  color: #120704;
+}
+html.dark .secondary-button {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #fff8eb;
+}
+html.dark .confirmation-card {
+  background: #1c0e08;
+  border: 1px solid rgba(255, 196, 0, 0.3);
+  color: #fff8eb;
+}
+html.dark .confirmation-card h1 {
+  color: #ffffff;
+}
+html.dark .confirmation-card p {
+  color: #c9b49b;
+}
+html.dark .order-status {
+  background: rgba(255, 196, 0, 0.15);
+  color: #ffd44c;
+}
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px); --radius-md: calc(var(--radius) - 2px); --radius-lg: var(--radius); --radius-xl: calc(var(--radius) + 4px);

@@ -1,6 +1,7 @@
 import React from "react";
 import { ChevronLeft, Flame, LogOut, Sparkles, UserCheck } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { ThemeToggle } from "./ThemeToggle";
 
 interface BrandHeaderProps {
   title?: string;
@@ -128,7 +129,8 @@ export function BrandHeader({
       )}
 
       {/* Right side actions */}
-      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+        <ThemeToggle compact showLabel />
         {staffUser ? (
           <div
             style={{

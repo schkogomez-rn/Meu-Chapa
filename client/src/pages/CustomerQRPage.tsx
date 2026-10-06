@@ -184,7 +184,7 @@ export default function CustomerQRPage() {
   const session = sessionQuery.data;
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0d0604", color: "#fff8eb", display: "flex", flexDirection: "column" }}>
+    <div style={{ minHeight: "100vh", background: "var(--background)", color: "var(--foreground)", display: "flex", flexDirection: "column" }}>
       {/* Header with Table info */}
       <BrandHeader
         subtitle={`Atendimento Digital • ${session?.tableName ?? "Mesa"}`}

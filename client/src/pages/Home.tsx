@@ -49,6 +49,7 @@ import { ReceivePaymentModal } from "@/components/financial/ReceivePaymentModal"
 import { CashRegisterControl } from "@/components/financial/CashRegisterControl";
 import { CancelRefundModal } from "@/components/financial/CancelRefundModal";
 import { AuditLogModal } from "@/components/financial/AuditLogModal";
+import { ThemeToggle } from "@/components/design-system/ThemeToggle";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 const money = (cents: number) =>
@@ -525,7 +526,10 @@ function ServiceModePicker({
       <div className="service-picker-glow glow-top" />
       <div className="service-picker-glow glow-bottom" />
 
-      <div className="service-picker-container">
+      <div className="service-picker-container" style={{ position: "relative" }}>
+        <div style={{ position: "absolute", top: "16px", right: "16px", zIndex: 10 }}>
+          <ThemeToggle compact showLabel />
+        </div>
         {/* Brand Header */}
         <header className="service-picker-header">
           <div className="service-picker-logo-box">
@@ -2875,6 +2879,7 @@ export default function Home({ initialMode }: { initialMode?: "customer" | "wait
                 ? `Olá, ${user.name?.split(" ")[0] ?? "equipe"}`
                 : "Feito na hora"}
             </span>
+            <ThemeToggle compact showLabel />
             <ModeBadge mode={serviceMode} onSwitch={() => setActiveView("mode-select")} />
             <button className="header-bag" onClick={() => setCheckoutOpen(true)} title="Ver Sacola">
               <ShoppingBag size={18} />
