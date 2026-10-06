@@ -33,6 +33,7 @@ export default function CustomerQRPage() {
   const token = params.token || "";
 
   const [customerName, setCustomerName] = useState("");
+  const [selectedTable, setSelectedTable] = useState("");
   const [cart, setCart] = useState<CartLine[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<MenuCategory>("Combos");
   const [dialogItem, setDialogItem] = useState<MenuItem | null>(null);
@@ -46,6 +47,7 @@ export default function CustomerQRPage() {
   const sessionQuery = trpc.qrSession.validateSession.useMutation({
     onSuccess: (data) => {
       if (data.customerName) setCustomerName(data.customerName);
+      if (data.tableName) setSelectedTable(data.tableName);
       try {
         localStorage.setItem("meu_chapa_qr_token", token);
       } catch {
@@ -124,6 +126,7 @@ export default function CustomerQRPage() {
     createOrderMutation.mutate({
       token,
       customerName: customerName.trim() || undefined,
+      tableName: selectedTable.trim() || session?.tableName || undefined,
       items: cart.map((i) => ({
         productId: i.id,
         name: i.name,
@@ -504,25 +507,82 @@ export default function CustomerQRPage() {
               </button>
             </div>
 
-            <div style={{ margin: "14px 0" }}>
-              <label style={{ display: "block", fontSize: "11px", color: "#d6be9f", marginBottom: "4px" }}>
-                Seu Nome na Comanda (opcional)
-              </label>
-              <input
-                type="text"
-                placeholder="Ex: Carlos, Ana..."
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "10px",
-                  background: "rgba(0,0,0,0.3)",
-                  border: "1px solid rgba(255, 196, 0, 0.25)",
-                  borderRadius: "8px",
-                  color: "#fff",
-                  fontSize: "13px",
-                }}
-              />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", margin: "14px 0" }}>
+              <div>
+                <label style={{ display: "block", fontSize: "11px", color: "#d6be9f", marginBottom: "4px" }}>
+                  Mesa do Atendimento
+                </label>
+                <div style={{ display: "flex", gap: "6px" }}>
+                  <input
+                    type="text"
+                    placeholder="Ex: Mesa 03"
+                    value={selectedTable}
+                    onChange={(e) => setSelectedTable(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "10px",
+                      background: "rgba(0,0,0,0.3)",
+                      border: "1px solid rgba(255, 196, 0, 0.4)",
+                      borderRadius: "8px",
+                      color: "#ffd44c",
+                      fontWeight: 800,
+                      fontSize: "13px",
+                    }}
+                  />
+                </div>
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: "11px", color: "#d6be9f", marginBottom: "4px" }}>
+                  Seu Nome (opcional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: Carlos, Ana..."
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "10px",
+                    background: "rgba(0,0,0,0.3)",
+                    border: "1px solid rgba(255, 196, 0, 0.25)",
+                    borderRadius: "8px",
+                    color: "#fff",
+                    fontSize: "13px",
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Chips rápidos de mesas para facilitar a indicação no celular */}
+            <div style={{ marginBottom: "12px" }}>
+              <span style={{ fontSize: "10px", color: "#a8947f", textTransform: "uppercase", fontWeight: 700, display: "block", marginBottom: "6px" }}>
+                Toque para trocar de mesa se necessário:
+              </span>
+              <div style={{ display: "flex", gap: "6px", overflowX: "auto", paddingBottom: "4px" }}>
+                {Array.from({ length: 20 }, (_, i) => `Mesa ${String(i + 1).padStart(2, "0")}`).concat(["Balcão 01", "Balcão 02"]).map((m) => {
+                  const isSel = (selectedTable || session?.tableName) === m;
+                  return (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setSelectedTable(m)}
+                      style={{
+                        flexShrink: 0,
+                        padding: "5px 10px",
+                        borderRadius: "14px",
+                        fontSize: "11px",
+                        fontWeight: isSel ? 800 : 600,
+                        cursor: "pointer",
+                        border: isSel ? "1px solid #ffd44c" : "1px solid rgba(255,255,255,0.12)",
+                        background: isSel ? "linear-gradient(135deg, #ffd44c, #f07b17)" : "rgba(255,255,255,0.04)",
+                        color: isSel ? "#120704" : "#d6be9f",
+                      }}
+                    >
+                      {m}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px" }}>

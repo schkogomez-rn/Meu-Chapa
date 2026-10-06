@@ -2624,19 +2624,24 @@ function Operations({ onBack }: { onBack: () => void }) {
 }
 
 // ─── Home Principal ──────────────────────────────────────────────────────────
-export default function Home() {
+export default function Home({ initialMode }: { initialMode?: "customer" | "waiter" | "counter" | "ops" } = {}) {
   const menuQuery = trpc.menu.list.useQuery();
   const createOrder = trpc.orders.create.useMutation();
   const { user, isAuthenticated } = useAuth();
 
   const [activeView, setActiveView] = useState<"mode-select" | "order" | "ops">(() => {
+    if (initialMode === "ops") return "ops";
+    if (initialMode) return "order";
     const params = new URLSearchParams(window.location.search);
     const m = (params.get("modo") || params.get("destino") || "").toLowerCase();
     if (m === "ops" || m === "painel") return "ops";
-    if (m === "garcom" || m === "waiter" || m === "counter" || m === "balcao") return "order";
+    if (m === "garcom" || m === "waiter" || m === "counter" || m === "balcao" || m === "cliente" || m === "customer") return "order";
     return "mode-select";
   });
   const [serviceMode, setServiceMode] = useState<ServiceMode>(() => {
+    if (initialMode === "waiter") return "waiter";
+    if (initialMode === "counter") return "counter";
+    if (initialMode === "customer") return "customer";
     const params = new URLSearchParams(window.location.search);
     const m = (params.get("modo") || params.get("destino") || "").toLowerCase();
     if (m === "garcom" || m === "waiter") return "waiter";
@@ -2652,6 +2657,9 @@ export default function Home() {
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [confirmationCode, setConfirmationCode] = useState<string | null>(null);
   const [checkoutServiceType, setCheckoutServiceType] = useState<"table" | "waiter" | "counter">(() => {
+    if (initialMode === "waiter") return "waiter";
+    if (initialMode === "counter") return "counter";
+    if (initialMode === "customer") return "table";
     const params = new URLSearchParams(window.location.search);
     const m = (params.get("modo") || params.get("destino") || "").toLowerCase();
     if (m === "garcom" || m === "waiter") return "waiter";
@@ -2716,11 +2724,17 @@ export default function Home() {
     } else if (checkoutServiceType === "waiter") {
       modeToUse = "waiter";
       finalOrigin = "Garçom / Atendimento";
-      if (!finalTable) finalTable = "Mesa 01";
+      if (!finalTable) {
+        window.alert("Por favor, selecione ou informe o número da mesa do atendimento.");
+        return;
+      }
     } else {
       modeToUse = "customer";
       finalOrigin = "Mesa no Salão";
-      if (!finalTable) finalTable = "Mesa 01";
+      if (!finalTable) {
+        window.alert("Por favor, indique a sua mesa para levarmos o pedido até você.");
+        return;
+      }
     }
 
     const orderStatus: "pending_waiter" | "received" = waiterValidation
@@ -3313,20 +3327,9 @@ export default function Home() {
                     scrollbarWidth: "thin",
                   }}
                 >
-                  {[
-                    "Mesa 01",
-                    "Mesa 02",
-                    "Mesa 03",
-                    "Mesa 04",
-                    "Mesa 05",
-                    "Mesa 06",
-                    "Mesa 07",
-                    "Mesa 08",
-                    "Mesa 09",
-                    "Mesa 10",
-                    "Mesa 11",
-                    "Mesa 12",
-                  ].map((m) => {
+                  {Array.from({ length: 20 }, (_, i) => `Mesa ${String(i + 1).padStart(2, "0")}`)
+                    .concat(["Balcão 01", "Balcão 02", "Varanda"])
+                    .map((m) => {
                     const isSel = tableName === m;
                     return (
                       <button

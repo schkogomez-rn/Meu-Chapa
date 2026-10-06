@@ -12,7 +12,13 @@ import { OperationsPanel } from "./components/operations/OperationsPanel";
 function Router() {
   return (
     <Switch>
-      <Route path={"/"} component={Home} />
+      <Route path={"/"}>{() => <Home />}</Route>
+      <Route path={"/cliente"}>{() => <Home initialMode="customer" />}</Route>
+      <Route path={"/cardapio"}>{() => <Home initialMode="customer" />}</Route>
+      <Route path={"/garcom"}>{() => <Home initialMode="waiter" />}</Route>
+      <Route path={"/cozinha"}>
+        {() => <OperationsPanel onBack={() => { window.location.href = "/"; }} />}
+      </Route>
       <Route path={"/m/:token"} component={CustomerQRPage} />
       <Route path={"/equipe/login"} component={StaffLogin} />
       <Route path={"/equipe/painel"}>

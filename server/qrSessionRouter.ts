@@ -67,6 +67,7 @@ export const qrSessionRouter = router({
       z.object({
         token: z.string().min(10).max(128),
         customerName: z.string().max(120).optional(),
+        tableName: z.string().max(64).optional(),
         paymentMethod: z.string().default("pix"),
         notes: z.string().max(600).optional(),
         items: z.array(orderItemSchema).min(1).max(40),
@@ -115,20 +116,21 @@ export const qrSessionRouter = router({
       );
 
       const code = makeOrderCode();
-      const clientName = input.customerName || session.customerName || "Cliente Mesa";
+      const finalTableName = input.tableName?.trim() || session.tableName;
+      const clientName = input.customerName || session.customerName || `Cliente ${finalTableName}`;
 
       const order = await createOrder({
         code,
         origin: "QR Code Mesa",
         serviceMode: "customer",
-        tableName: session.tableName,
+        tableName: finalTableName,
         customerName: clientName,
         paymentMethod: input.paymentMethod,
         notes: input.notes?.slice(0, 600) ?? null,
         items: normalizedItems,
         totalCents,
         status: "received",
-        operatorName: `Mesa ${session.tableName}`,
+        operatorName: finalTableName,
       });
 
       // Update session statistics
