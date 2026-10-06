@@ -147,6 +147,38 @@ export async function updateOrderStatus(code: string, status: InsertOrder["statu
   return getOrderByCode(code);
 }
 
+/**
+ * Substitui os itens de um pedido (edição pelo garçom/caixa) e recalcula o total
+ * e o status financeiro com base no que já foi pago.
+ */
+export async function updateOrderItems(
+  code: string,
+  items: InsertOrder["items"],
+  totalCents: number,
+  operatorName?: string
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const order = await getOrderByCode(code);
+  if (!order) throw new Error("Pedido não encontrado");
+
+  const paid = order.paidCents || 0;
+  let financialStatus: "pending" | "partial" | "paid" = "pending";
+  if (paid > 0 && paid >= totalCents) financialStatus = "paid";
+  else if (paid > 0) financialStatus = "partial";
+
+  const updateData: Record<string, unknown> = {
+    items,
+    totalCents,
+    financialStatus,
+    updatedAt: new Date(),
+  };
+  if (operatorName) updateData.operatorName = operatorName;
+
+  await db.update(orders).set(updateData).where(eq(orders.code, code));
+  return getOrderByCode(code);
+}
+
 
 export async function cancelOrder(code: string, reason: string, user: string) {
   const db = await getDb();

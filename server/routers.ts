@@ -21,6 +21,7 @@ import {
   openCashRegister,
   refundPayment,
   setStoreSetting,
+  updateOrderItems,
   updateOrderStatus,
 } from "./db";
 import { COOKIE_NAME } from "@shared/const";
@@ -232,6 +233,77 @@ export const appRouter = router({
           entityId: input.code,
           user: operator,
           details: { oldStatus: existing.status, newStatus: input.status },
+        });
+
+        return order;
+      }),
+
+    updateItems: publicProcedure
+      .input(
+        z.object({
+          code: z.string().min(1),
+          items: z.array(orderItemSchema).min(1, "O pedido precisa ter ao menos 1 item. Para remover tudo, cancele o pedido.").max(40),
+          reason: z.string().max(240).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        if (!hasRole(ctx, ["garcom", "caixa", "gerente", "dono"])) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Apenas garçom, caixa ou gerência podem editar pedidos." });
+        }
+        const existing = await getOrderByCode(input.code);
+        if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Pedido não encontrado" });
+
+        const editableStatuses = ["pending_waiter", "received", "preparing", "ready"];
+        if (!editableStatuses.includes(existing.status)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Pedidos entregues ou cancelados não podem mais ser editados.",
+          });
+        }
+
+        const menuById = new Map(MENU.map((item) => [item.id, item]));
+        const normalizedItems = input.items.map((item) => {
+          const catalogItem = menuById.get(item.productId);
+          if (!catalogItem) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: `Produto não encontrado: ${item.name}` });
+          }
+          return {
+            productId: catalogItem.id,
+            name: catalogItem.name,
+            category: catalogItem.category,
+            quantity: item.quantity,
+            unitPriceCents: catalogItem.priceCents,
+            observation: item.observation ?? "",
+          };
+        });
+
+        const subtotalCents = normalizedItems.reduce((sum, item) => sum + item.unitPriceCents * item.quantity, 0);
+        const { totalCents } = calcTotal(subtotalCents, existing.paymentMethod || "");
+
+        const paid = existing.paidCents || 0;
+        if (paid > totalCents) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "O novo total ficaria menor que o valor já pago. Solicite um estorno ao caixa/gerência antes de remover itens.",
+          });
+        }
+
+        const operator = getOperator(ctx);
+        const order = await updateOrderItems(input.code, normalizedItems, totalCents, operator);
+
+        await recordAudit({
+          action: "update_order_items",
+          entity: "orders",
+          entityId: input.code,
+          user: operator,
+          details: {
+            status: existing.status,
+            oldTotalCents: existing.totalCents,
+            newTotalCents: totalCents,
+            oldItems: existing.items,
+            newItems: normalizedItems,
+            reason: input.reason?.trim() || undefined,
+          },
         });
 
         return order;

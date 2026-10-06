@@ -15,6 +15,7 @@ import {
   LockKeyhole,
   Minus,
   MonitorSmartphone,
+  PencilLine,
   Plus,
   Printer,
   QrCode,
@@ -56,6 +57,7 @@ import { CancelRefundModal } from "@/components/financial/CancelRefundModal";
 import { AuditLogModal } from "@/components/financial/AuditLogModal";
 import { StaffUsersManager } from "./StaffUsersManager";
 import { TableQRManager } from "./TableQRManager";
+import { EditOrderModal } from "./EditOrderModal";
 
 type OpsTab = "orders" | "financial" | "reports" | "users" | "tables";
 type StatsPeriod = "day" | "week" | "month" | "year";
@@ -163,6 +165,8 @@ export function OperationsPanel({ onBack }: { onBack: () => void }) {
   const [statsPeriod, setStatsPeriod] = useState<StatsPeriod>("day");
   const [receivingOrder, setReceivingOrder] = useState<StoredOrder | null>(null);
   const [cancellingOrder, setCancellingOrder] = useState<StoredOrder | null>(null);
+  const [editingOrder, setEditingOrder] = useState<StoredOrder | null>(null);
+  const canEditOrders = isWaiter || isCashier;
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
 
   // Queries
@@ -527,6 +531,29 @@ export function OperationsPanel({ onBack }: { onBack: () => void }) {
                                 )}
 
                                 <div style={{ display: "flex", gap: "6px" }}>
+                                  {canEditOrders && order.status !== "completed" && order.status !== "cancelled" && (
+                                    <button
+                                      type="button"
+                                      id={`edit-order-${order.code}`}
+                                      title="Editar itens do pedido"
+                                      onClick={() => setEditingOrder(order)}
+                                      style={{
+                                        background: "rgba(255, 196, 0, 0.1)",
+                                        border: "1px solid rgba(255, 196, 0, 0.35)",
+                                        color: "#ffd44c",
+                                        borderRadius: "6px",
+                                        padding: "6px 10px",
+                                        fontSize: "11px",
+                                        fontWeight: 800,
+                                        cursor: "pointer",
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: "4px",
+                                      }}
+                                    >
+                                      <PencilLine size={13} /> Editar
+                                    </button>
+                                  )}
                                   {order.status === "pending_waiter" && (
                                     <button
                                       type="button"
@@ -1418,6 +1445,17 @@ export function OperationsPanel({ onBack }: { onBack: () => void }) {
           onClose={() => setCancellingOrder(null)}
           onSuccess={() => {
             setCancellingOrder(null);
+            ordersQuery.refetch();
+          }}
+        />
+      )}
+
+      {editingOrder && (
+        <EditOrderModal
+          order={editingOrder}
+          onClose={() => setEditingOrder(null)}
+          onSuccess={() => {
+            setEditingOrder(null);
             ordersQuery.refetch();
           }}
         />
